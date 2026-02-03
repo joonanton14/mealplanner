@@ -140,9 +140,13 @@ export default function Home() {
     setDraftIngredients((prev) => prev.map((ing, i) => (i === index ? { ...ing, ...patch } : ing)));
   }
 
-  function removeIngredientRow(index: number) {
-    setDraftIngredients((prev) => prev.filter((_, i) => i !== index));
-  }
+function removeIngredientRow(index: number) {
+  setDraftIngredients((prev) => {
+    const next = prev.filter((_, i) => i !== index);
+    return next.length === 0 ? [{ name: "", qty: 0, unit: "" }] : next;
+  });
+}
+
 
   function addRecipe() {
     if (!state) return;
@@ -179,7 +183,7 @@ export default function Home() {
     // reset form: no defaults
     setRecipeName("");
     setNotes("");
-    setDraftIngredients([]);
+    setDraftIngredients([{ name: "", qty: 0, unit: "" }]);
   }
 
   function removeRecipe(id: string) {
@@ -280,7 +284,7 @@ export default function Home() {
 
       <section className="grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
-          <h2 className="text-xl font-semibold">Lisää resepti.</h2>
+          <h2 className="text-xl font-semibold">Lisää resepti:</h2>
 
           <div className="space-y-1">
             <label className="text-sm font-medium">Reseptin nimi:</label>
@@ -294,7 +298,7 @@ export default function Home() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <label className="text-sm font-medium">Ainesosat</label>
+              <label className="text-sm font-medium">Ainesosat:</label>
               <button
                 type="button"
                 onClick={addIngredientRow}
@@ -304,53 +308,49 @@ export default function Home() {
               </button>
             </div>
 
-            {draftIngredients.length === 0 ? (
-              <p className="text-sm opacity-70">Ei lisättyjä ainesosia.</p>
-            ) : (
-              <div className="space-y-2">
-                {draftIngredients.map((ing, idx) => (
-                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                    <input
-                      className="col-span-6 rounded-xl border p-2"
-                      placeholder="Ainesosan nimi"
-                      value={ing.name}
-                      onChange={(e) => updateIngredientRow(idx, { name: e.target.value })}
-                    />
+<div className="space-y-2">
+  {draftIngredients.map((ing, idx) => (
+    <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+      <input
+        className="col-span-6 rounded-xl border p-2"
+        placeholder="Ainesosan nimi"
+        value={ing.name}
+        onChange={(e) => updateIngredientRow(idx, { name: e.target.value })}
+      />
 
-                    <input
-                      className="col-span-3 rounded-xl border p-2"
-                      type="number"
-                      min={0}
-                      step="0.1"
-                      placeholder="määrä"
-                      value={ing.qty === 0 ? "" : String(ing.qty)}
-                      onChange={(e) => updateIngredientRow(idx, { qty: Number(e.target.value) })}
-                    />
+      <input
+        className="col-span-3 rounded-xl border p-2"
+        type="number"
+        min={0}
+        step="0.1"
+        placeholder="määrä"
+        value={ing.qty === 0 ? "" : String(ing.qty)}
+        onChange={(e) => updateIngredientRow(idx, { qty: Number(e.target.value) })}
+      />
 
-                    <input
-                      className="col-span-2 rounded-xl border p-2"
-                      placeholder="määrä"
-                      value={ing.unit}
-                      onChange={(e) => updateIngredientRow(idx, { unit: e.target.value })}
-                    />
+      <input
+        className="col-span-2 rounded-xl border p-2"
+        placeholder="yksikkö"
+        value={ing.unit}
+        onChange={(e) => updateIngredientRow(idx, { unit: e.target.value })}
+      />
 
-                    <button
-                      type="button"
-                      onClick={() => removeIngredientRow(idx)}
-                      className="col-span-1 text-sm underline opacity-70 hover:opacity-100"
-                      title="Remove"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+      <button
+        type="button"
+        onClick={() => removeIngredientRow(idx)}
+        className="col-span-1 text-sm underline opacity-70 hover:opacity-100"
+        title="Poista"
+      >
+        ✕
+      </button>
+    </div>
+  ))}
+</div>
 
           </div>
 
           <div className="space-y-1">
-            <label className="text-sm font-medium">Ohje</label>
+            <label className="text-sm font-medium">Ohje:</label>
             <input
               className="w-full rounded-xl border p-2"
               value={notes}
@@ -367,20 +367,20 @@ export default function Home() {
         </div>
 
         <div className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
-          <h2 className="text-xl font-semibold">Kauppalista</h2>
-          <p className="text-sm opacity-80">These items are excluded from the shopping list.</p>
+          <h2 className="text-xl font-semibold">Ostoslista:</h2>
+          <p className="text-sm opacity-80">Muita asiota kauppalistaan.</p>
           <textarea
             className="w-full rounded-xl border p-2 min-h-[240px]"
             value={state.pantryText}
             onChange={(e) => setState({ ...state, pantryText: e.target.value })}
-            placeholder="One item per line"
+            placeholder="Yksi ainesosa per rivi"
           />
         </div>
       </section>
 
       <section className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-4">
         <div className="flex flex-wrap items-center gap-2 justify-between">
-          <h2 className="text-xl font-semibold">Random pick</h2>
+          <h2 className="text-xl font-semibold">Valitse haluamasi määrä ruokia:</h2>
           <div className="flex gap-2">
             {[1, 2, 3, 4, 5].map((n) => (
               <button
@@ -388,24 +388,24 @@ export default function Home() {
                 onClick={() => randomPick(n)}
                 className="rounded-xl border px-3 py-2 hover:bg-black hover:text-white transition"
               >
-                Pick {n}
+                Valitse {n}
               </button>
             ))}
             <button
               onClick={() => setState({ ...state, picked: [] })}
               className="rounded-xl border px-3 py-2 hover:bg-black hover:text-white transition"
             >
-              Clear
+              Tyhjennä
             </button>
           </div>
         </div>
 
         {state.picked.length === 0 ? (
-          <p className="opacity-70">No meals picked yet.</p>
+          <p className="opacity-70">Ei valittuja ruokia.</p>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             <div className="rounded-2xl border p-3">
-              <h3 className="font-semibold mb-2">Picked meals</h3>
+              <h3 className="font-semibold mb-2">Valitut ruoat.</h3>
               <ul className="space-y-2">
                 {state.picked.map((m) => (
                   <li key={m.recipeId} className="flex items-center justify-between gap-2">
@@ -416,7 +416,7 @@ export default function Home() {
                         setState({ ...state, picked: state.picked.filter((p) => p.recipeId !== m.recipeId) })
                       }
                     >
-                      remove
+                      Poista
                     </button>
                   </li>
                 ))}
@@ -424,9 +424,9 @@ export default function Home() {
             </div>
 
             <div className="rounded-2xl border p-3">
-              <h3 className="font-semibold mb-2">Shopping list</h3>
+              <h3 className="font-semibold mb-2">Kauppalista</h3>
               {shoppingList.length === 0 ? (
-                <p className="opacity-70">Nothing to buy (or everything is in pantry).</p>
+                <p className="opacity-70">Ei tarvetta ostaa (tai kaikki on kotoa).</p>
               ) : (
                 <ul className="space-y-2">
                   {shoppingList.map((it) => (
@@ -445,9 +445,9 @@ export default function Home() {
       </section>
 
       <section className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
-        <h2 className="text-xl font-semibold">Your recipes ({state.recipes.length})</h2>
+        <h2 className="text-xl font-semibold">Reseptit ({state.recipes.length})</h2>
         {state.recipes.length === 0 ? (
-          <p className="opacity-70">Add your first recipe above.</p>
+          <p className="opacity-70">Lisää ensimmäinen resepti yllä.</p>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {state.recipes.map((r) => (
@@ -458,7 +458,7 @@ export default function Home() {
                     onClick={() => removeRecipe(r.id)}
                     className="text-sm underline opacity-70 hover:opacity-100"
                   >
-                    delete
+                    Poista
                   </button>
                 </div>
 
