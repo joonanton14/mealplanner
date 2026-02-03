@@ -12,6 +12,10 @@ type AppState = {
   picked: PickedMeal[];
 };
 
+function uid() {
+  return Math.random().toString(16).slice(2) + Date.now().toString(16);
+}
+
 function normalizeName(s: string) {
   return s.trim().toLowerCase();
 }
@@ -67,10 +71,6 @@ async function saveState(state: AppState) {
   if (!res.ok) throw new Error("Failed to save");
 }
 
-function uid() {
-  return Math.random().toString(16).slice(2) + Date.now().toString(16);
-}
-
 export default function Home() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [state, setState] = useState<AppState | null>(null);
@@ -78,11 +78,13 @@ export default function Home() {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // new recipe form
+  // New recipe form state (no defaults)
   const [recipeName, setRecipeName] = useState("");
-  const [ingredientsText, setIngredientsText] = useState("onion, 1, pcs\nrice, 200, g");
   const [notes, setNotes] = useState("");
+  const [draftIngredients, setDraftIngredients] = useState<Ingredient[]>([]);
+  const [formError, setFormError] = useState<string | null>(null);
 
+  // avoid saving immediately after first load
   const hasLoaded = useRef(false);
   const saveTimer = useRef<number | null>(null);
 
@@ -103,7 +105,7 @@ export default function Home() {
     })();
   }, []);
 
-  // Debounced save
+  // Debounced save to KV whenever state changes
   useEffect(() => {
     if (!state) return;
     if (!hasLoaded.current) return;
@@ -130,34 +132,54 @@ export default function Home() {
     return groupShoppingList(state.recipes, state.picked, pantry);
   }, [state, pantry]);
 
-  function parseIngredients(text: string): Ingredient[] {
-    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
-    const ings: Ingredient[] = [];
-    for (const line of lines) {
-      const parts = line.split(",").map((p) => p.trim());
-      if (parts.length < 3) continue;
-      const name = parts[0];
-      const qty = Number(parts[1]);
-      const unit = parts[2];
-      if (!name || !Number.isFinite(qty) || !unit) continue;
-      ings.push({ name, qty, unit });
-    }
-    return ings;
+  function addIngredientRow() {
+    setDraftIngredients((prev) => [...prev, { name: "", qty: 0, unit: "" }]);
+  }
+
+  function updateIngredientRow(index: number, patch: Partial<Ingredient>) {
+    setDraftIngredients((prev) => prev.map((ing, i) => (i === index ? { ...ing, ...patch } : ing)));
+  }
+
+  function removeIngredientRow(index: number) {
+    setDraftIngredients((prev) => prev.filter((_, i) => i !== index));
   }
 
   function addRecipe() {
     if (!state) return;
-    const name = recipeName.trim();
-    if (!name) return;
-    const ingredients = parseIngredients(ingredientsText);
-    if (ingredients.length === 0) return;
+    setFormError(null);
 
-    const r: Recipe = { id: uid(), name, ingredients, notes: notes.trim() || undefined };
+    const name = recipeName.trim();
+    if (!name) {
+      setFormError("Recipe name is required.");
+      return;
+    }
+
+    const ingredients = draftIngredients
+      .map((i) => ({
+        name: i.name.trim(),
+        qty: Number(i.qty),
+        unit: i.unit.trim(),
+      }))
+      .filter((i) => i.name && Number.isFinite(i.qty) && i.qty > 0 && i.unit);
+
+    if (ingredients.length === 0) {
+      setFormError("Add at least one ingredient (name, qty > 0, unit).");
+      return;
+    }
+
+    const r: Recipe = {
+      id: uid(),
+      name,
+      ingredients,
+      notes: notes.trim() || undefined,
+    };
+
     setState({ ...state, recipes: [r, ...state.recipes] });
 
+    // reset form: no defaults
     setRecipeName("");
-    setIngredientsText("ingredient, 1, pcs");
     setNotes("");
+    setDraftIngredients([]);
   }
 
   function removeRecipe(id: string) {
@@ -179,16 +201,19 @@ export default function Home() {
 
   async function login() {
     setAuthError(null);
+
     const res = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password }),
     });
+
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
       setAuthError(data?.error ?? "Login failed");
       return;
     }
+
     const s = await loadState();
     setState(s);
     setAuthed(true);
@@ -196,7 +221,14 @@ export default function Home() {
     setPassword("");
   }
 
-  // UI states
+  async function logout() {
+    await fetch("/api/logout", { method: "POST" });
+    setAuthed(false);
+    setState(null);
+    hasLoaded.current = false;
+  }
+
+  // ---- UI states ----
   if (authed === null) {
     return (
       <main className="mx-auto max-w-xl p-6">
@@ -234,45 +266,114 @@ export default function Home() {
 
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-3xl font-bold">MealPlanner</h1>
-        <p className="opacity-80">Synced across devices via KV.</p>
+      <header className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <h1 className="text-3xl font-bold">MealPlanner</h1>
+        </div>
+        <button
+          onClick={logout}
+          className="rounded-xl border px-3 py-2 hover:bg-black hover:text-white transition"
+        >
+          Logout
+        </button>
       </header>
 
       <section className="grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
-          <h2 className="text-xl font-semibold">Add a recipe</h2>
-          <input
-            className="w-full rounded-xl border p-2"
-            value={recipeName}
-            onChange={(e) => setRecipeName(e.target.value)}
-            placeholder="Recipe name"
-          />
+          <h2 className="text-xl font-semibold">Lisää resepti.</h2>
+
           <div className="space-y-1">
-            <p className="text-xs opacity-70">Ingredients: name, qty, unit (one per line)</p>
-            <textarea
-              className="w-full rounded-xl border p-2 min-h-[140px]"
-              value={ingredientsText}
-              onChange={(e) => setIngredientsText(e.target.value)}
+            <label className="text-sm font-medium">Reseptin nimi:</label>
+            <input
+              className="w-full rounded-xl border p-2"
+              value={recipeName}
+              onChange={(e) => setRecipeName(e.target.value)}
+              placeholder="Makaronilaatikko..."
             />
           </div>
-          <input
-            className="w-full rounded-xl border p-2"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            placeholder="Notes (optional)"
-          />
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium">Ainesosat</label>
+              <button
+                type="button"
+                onClick={addIngredientRow}
+                className="rounded-lg border px-2 py-1 text-sm hover:bg-black hover:text-white transition"
+              >
+                + lisää ainesosa
+              </button>
+            </div>
+
+            {draftIngredients.length === 0 ? (
+              <p className="text-sm opacity-70">Ei lisättyjä ainesosia.</p>
+            ) : (
+              <div className="space-y-2">
+                {draftIngredients.map((ing, idx) => (
+                  <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+                    <input
+                      className="col-span-6 rounded-xl border p-2"
+                      placeholder="Ainesosan nimi"
+                      value={ing.name}
+                      onChange={(e) => updateIngredientRow(idx, { name: e.target.value })}
+                    />
+
+                    <input
+                      className="col-span-3 rounded-xl border p-2"
+                      type="number"
+                      min={0}
+                      step="0.1"
+                      placeholder="määrä"
+                      value={ing.qty === 0 ? "" : String(ing.qty)}
+                      onChange={(e) => updateIngredientRow(idx, { qty: Number(e.target.value) })}
+                    />
+
+                    <input
+                      className="col-span-2 rounded-xl border p-2"
+                      placeholder="määrä"
+                      value={ing.unit}
+                      onChange={(e) => updateIngredientRow(idx, { unit: e.target.value })}
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => removeIngredientRow(idx)}
+                      className="col-span-1 text-sm underline opacity-70 hover:opacity-100"
+                      title="Remove"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Ohje</label>
+            <input
+              className="w-full rounded-xl border p-2"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              placeholder="Näin teet reseptin..."
+            />
+          </div>
+
           <button onClick={addRecipe} className="w-full rounded-xl bg-black text-white px-4 py-2">
-            Add recipe
+            Lisää resepti
           </button>
+
+          {formError && <p className="text-red-600 text-sm">{formError}</p>}
         </div>
 
         <div className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
-          <h2 className="text-xl font-semibold">Pantry</h2>
+          <h2 className="text-xl font-semibold">Kauppalista</h2>
+          <p className="text-sm opacity-80">These items are excluded from the shopping list.</p>
           <textarea
             className="w-full rounded-xl border p-2 min-h-[240px]"
             value={state.pantryText}
             onChange={(e) => setState({ ...state, pantryText: e.target.value })}
+            placeholder="One item per line"
           />
         </div>
       </section>
@@ -299,15 +400,15 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="grid gap-3 md:grid-cols-2">
-          <div className="rounded-2xl border p-3">
-            <h3 className="font-semibold mb-2">Picked meals</h3>
-            {state.picked.length === 0 ? (
-              <p className="opacity-70">None yet.</p>
-            ) : (
+        {state.picked.length === 0 ? (
+          <p className="opacity-70">No meals picked yet.</p>
+        ) : (
+          <div className="grid gap-3 md:grid-cols-2">
+            <div className="rounded-2xl border p-3">
+              <h3 className="font-semibold mb-2">Picked meals</h3>
               <ul className="space-y-2">
                 {state.picked.map((m) => (
-                  <li key={m.recipeId} className="flex justify-between gap-3">
+                  <li key={m.recipeId} className="flex items-center justify-between gap-2">
                     <span>{m.name}</span>
                     <button
                       className="text-sm underline opacity-70 hover:opacity-100"
@@ -320,27 +421,27 @@ export default function Home() {
                   </li>
                 ))}
               </ul>
-            )}
-          </div>
+            </div>
 
-          <div className="rounded-2xl border p-3">
-            <h3 className="font-semibold mb-2">Shopping list</h3>
-            {shoppingList.length === 0 ? (
-              <p className="opacity-70">Nothing to buy.</p>
-            ) : (
-              <ul className="space-y-2">
-                {shoppingList.map((it) => (
-                  <li key={`${it.name}-${it.unit}`} className="flex justify-between gap-4">
-                    <span className="truncate">{it.name}</span>
-                    <span className="shrink-0 opacity-80">
-                      {Math.round(it.qty * 100) / 100} {it.unit}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="rounded-2xl border p-3">
+              <h3 className="font-semibold mb-2">Shopping list</h3>
+              {shoppingList.length === 0 ? (
+                <p className="opacity-70">Nothing to buy (or everything is in pantry).</p>
+              ) : (
+                <ul className="space-y-2">
+                  {shoppingList.map((it) => (
+                    <li key={`${it.name}-${it.unit}`} className="flex justify-between gap-4">
+                      <span className="truncate">{it.name}</span>
+                      <span className="shrink-0 opacity-80">
+                        {Math.round(it.qty * 100) / 100} {it.unit}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </section>
 
       <section className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
@@ -351,18 +452,37 @@ export default function Home() {
           <div className="grid gap-3 md:grid-cols-2">
             {state.recipes.map((r) => (
               <div key={r.id} className="rounded-2xl border p-3 space-y-2">
-                <div className="flex justify-between gap-2">
+                <div className="flex items-center justify-between gap-2">
                   <div className="font-semibold">{r.name}</div>
-                  <button onClick={() => removeRecipe(r.id)} className="text-sm underline opacity-70 hover:opacity-100">
+                  <button
+                    onClick={() => removeRecipe(r.id)}
+                    className="text-sm underline opacity-70 hover:opacity-100"
+                  >
                     delete
                   </button>
                 </div>
+
                 {r.notes && <p className="text-sm opacity-80">{r.notes}</p>}
+
+                <ul className="text-sm space-y-1">
+                  {r.ingredients.map((i, idx) => (
+                    <li key={idx} className="flex justify-between gap-4">
+                      <span className="truncate">{i.name}</span>
+                      <span className="shrink-0 opacity-80">
+                        {i.qty} {i.unit}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             ))}
           </div>
         )}
       </section>
+
+      <footer className="text-xs opacity-60">
+        Eipä tarvii ennää miettiä mitä ens viikolla syötäis. Made with ♥ by Joona.{" "}
+      </footer>
     </main>
   );
 }
