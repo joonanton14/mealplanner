@@ -140,7 +140,7 @@ export default function Home() {
     setDraftIngredients((prev) => prev.map((ing, i) => (i === index ? { ...ing, ...patch } : ing)));
   }
 
-function removeIngredientRow(index: number) {
+ function removeIngredientRow(index: number) {
   setDraftIngredients((prev) => {
     const next = prev.filter((_, i) => i !== index);
     return next.length === 0 ? [{ name: "", qty: 0, unit: "" }] : next;
@@ -246,10 +246,10 @@ function removeIngredientRow(index: number) {
     return (
       <main className="mx-auto max-w-xl p-6 space-y-4">
         <h1 className="text-3xl font-bold">MealPlanner</h1>
-        <p className="opacity-80">Enter the shared password.</p>
+        <p className="opacity-80">Syötä salasana</p>
 
         <div className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
-          <label className="text-sm font-medium">Password</label>
+          <label className="text-sm font-medium">Salasana</label>
           <input
             className="w-full rounded-xl border p-2"
             type="password"
@@ -258,7 +258,7 @@ function removeIngredientRow(index: number) {
             onKeyDown={(e) => (e.key === "Enter" ? login() : null)}
           />
           <button onClick={login} className="w-full rounded-xl bg-black text-white px-4 py-2">
-            Login
+            Kirjaudu
           </button>
           {authError && <p className="text-red-600">{authError}</p>}
         </div>
@@ -292,7 +292,7 @@ function removeIngredientRow(index: number) {
               className="w-full rounded-xl border p-2"
               value={recipeName}
               onChange={(e) => setRecipeName(e.target.value)}
-              placeholder="Makaronilaatikko..."
+              placeholder="Esim makaronilaatikko..."
             />
           </div>
 
@@ -347,6 +347,7 @@ function removeIngredientRow(index: number) {
   ))}
 </div>
 
+
           </div>
 
           <div className="space-y-1">
@@ -355,7 +356,7 @@ function removeIngredientRow(index: number) {
               className="w-full rounded-xl border p-2"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              placeholder="Näin teet reseptin..."
+              placeholder="Ohjeet valmistukseen..."
             />
           </div>
 
@@ -379,26 +380,26 @@ function removeIngredientRow(index: number) {
       </section>
 
       <section className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-4">
-        <div className="flex flex-wrap items-center gap-2 justify-between">
-          <h2 className="text-xl font-semibold">Valitse haluamasi määrä ruokia:</h2>
-          <div className="flex gap-2">
-            {[1, 2, 3, 4, 5].map((n) => (
-              <button
-                key={n}
-                onClick={() => randomPick(n)}
-                className="rounded-xl border px-3 py-2 hover:bg-black hover:text-white transition"
-              >
-                Valitse {n}
-              </button>
-            ))}
-            <button
-              onClick={() => setState({ ...state, picked: [] })}
-              className="rounded-xl border px-3 py-2 hover:bg-black hover:text-white transition"
-            >
-              Tyhjennä
-            </button>
-          </div>
-        </div>
+<div className="grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:gap-2 sm:justify-end">
+  {[1, 2, 3, 4, 5].map((n) => (
+    <button
+      key={n}
+      onClick={() => randomPick(n)}
+      className="rounded-xl border hover:bg-black hover:text-white transition
+                 px-2 py-2 text-sm sm:px-3 sm:py-2 sm:text-base"
+    >
+      Valitse {n}
+    </button>
+  ))}
+
+  <button
+    onClick={() => setState({ ...state, picked: [] })}
+    className="rounded-xl border hover:bg-black hover:text-white transition
+               px-2 py-2 text-sm sm:px-3 sm:py-2 sm:text-base"
+  >
+    Tyhjennä
+  </button>
+</div>
 
         {state.picked.length === 0 ? (
           <p className="opacity-70">Ei valittuja ruokia.</p>

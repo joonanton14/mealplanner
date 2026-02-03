@@ -7,7 +7,7 @@ const KEY = "household:main";
 
 const DEFAULT_STATE = {
   recipes: [],
-  pantryText: "salt\npepper\nolive oil",
+  pantryText: "",
   picked: [],
 };
 
