@@ -10,7 +10,9 @@ type AppState = {
   recipes: Recipe[];
   pantryText: string;
   picked: PickedMeal[];
+  hiddenShoppingKeys: string[];
 };
+
 
 function uid() {
   return Math.random().toString(16).slice(2) + Date.now().toString(16);
@@ -74,7 +76,7 @@ async function saveState(state: AppState) {
 export default function Home() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [state, setState] = useState<AppState | null>(null);
-
+  const [extraItems, setExtraItems] = useState<string[]>([""]);
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
 
@@ -87,6 +89,14 @@ export default function Home() {
   // avoid saving immediately after first load
   const hasLoaded = useRef(false);
   const saveTimer = useRef<number | null>(null);
+
+  const extraRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const [extraToast, setExtraToast] = useState<string | null>(null);
+
+  function showExtraToast(msg: string) {
+    setExtraToast(msg);
+    window.setTimeout(() => setExtraToast(null), 1000);
+  }
 
   useEffect(() => {
     (async () => {
@@ -122,15 +132,137 @@ export default function Home() {
     };
   }, [state]);
 
+  useEffect(() => {
+  if (!state) return;
+
+  const joined = extraItems
+    .map((x) => x.trim())
+    .filter(Boolean)
+    .join("\n");
+
+  if (state.pantryText === joined) return;
+  setState({ ...state, pantryText: joined });
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [extraItems]);
+
+
   const pantry = useMemo(() => {
     const t = state?.pantryText ?? "";
     return t.split("\n").map((s) => s.trim()).filter(Boolean);
   }, [state?.pantryText]);
 
-  const shoppingList = useMemo(() => {
-    if (!state) return [];
-    return groupShoppingList(state.recipes, state.picked, pantry);
-  }, [state, pantry]);
+const shoppingList = useMemo(() => {
+  if (!state) return [];
+
+  const base = groupShoppingList(state.recipes, state.picked, pantry);
+
+  // IMPORTANT: extraItems always ends with one empty row -> filter it out
+  const extras = extraItems.map((x) => x.trim()).filter(Boolean);
+
+  return mergeExtrasIntoShoppingList(base, extras);
+}, [state, pantry, extraItems]);
+
+
+  const hiddenSet = useMemo(
+  () => new Set((state?.hiddenShoppingKeys ?? []).map((s) => s)),
+  [state?.hiddenShoppingKeys]
+  );
+
+  const visibleShoppingList = useMemo(() => {
+  return shoppingList.filter((it) => !hiddenSet.has(`${normalizeName(it.name)}|||${it.unit}`));
+  }, [shoppingList, hiddenSet]);
+  
+  const combinedShoppingList = useMemo(() => {
+  // Start from recipe shopping list
+  const map = new Map<string, { name: string; unit: string; qty: number }>();
+  for (const it of shoppingList) {
+    map.set(`${normalizeName(it.name)}|||${it.unit}`, { ...it });
+  }
+
+  // Add extras as qty=1, unit=""
+  for (const raw of extraItems) {
+    const name = raw.trim();
+    if (!name) continue;
+    const key = `${normalizeName(name)}|||`;
+    const existing = map.get(key);
+    if (existing) existing.qty += 1;
+    else map.set(key, { name, unit: "", qty: 1 });
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}, [shoppingList, extraItems]);
+
+function hideShoppingItem(name: string, unit: string) {
+  if (!state) return;
+
+  const key = `${normalizeName(name)}|||${unit}`;
+  const current = state.hiddenShoppingKeys ?? [];
+
+  if (current.includes(key)) return;
+
+  setState({
+    ...state,
+    hiddenShoppingKeys: [...current, key],
+  });
+}
+
+function mergeExtrasIntoShoppingList(
+  base: Array<{ name: string; unit: string; qty: number }>,
+  extras: string[]
+) {
+  const map = new Map<string, { name: string; unit: string; qty: number }>();
+
+  for (const it of base) {
+    map.set(`${normalizeName(it.name)}|||${it.unit}`, { ...it });
+  }
+
+  for (const raw of extras) {
+    const name = raw.trim();
+    if (!name) continue;
+
+    // extras have no unit; qty = 1 by default
+    const key = `${normalizeName(name)}|||`;
+    const existing = map.get(key);
+    if (existing) existing.qty += 1;
+    else map.set(key, { name, unit: "", qty: 1 });
+  }
+
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function restoreShoppingList() {
+  if (!state) return;
+  setState({ ...state, hiddenShoppingKeys: [] });
+}
+
+function addExtraItemRow() {
+  setExtraItems((prev) => [...prev, ""]);
+  showExtraToast("Lisätty ✓");
+
+  // focus the newly created input on next paint
+  requestAnimationFrame(() => {
+    const nextIndex = extraItems.length; // current length becomes new last index
+    extraRefs.current[nextIndex]?.focus();
+  });
+}
+
+function updateExtraItemRow(index: number, value: string) {
+  setExtraItems((prev) => prev.map((x, i) => (i === index ? value : x)));
+}
+
+function removeExtraItemRow(index: number) {
+  setExtraItems((prev) => {
+    const next = prev.filter((_, i) => i !== index);
+
+    if (next.length === 0) return [""]; // keep one empty row
+    if (next[next.length - 1].trim() !== "") next.push("");
+    return next;
+  });
+
+  showExtraToast("Poistettu ✕");
+}
+
 
   function addIngredientRow() {
     setDraftIngredients((prev) => [...prev, { name: "", qty: 0, unit: "" }]);
@@ -203,34 +335,42 @@ export default function Home() {
     setState({ ...state, picked: chosen });
   }
 
-  async function login() {
-    setAuthError(null);
+async function login() {
+  setAuthError(null);
 
-    const res = await fetch("/api/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
-    });
+  const res = await fetch("/api/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ password }),
+  });
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setAuthError(data?.error ?? "Login failed");
-      return;
-    }
-
-    const s = await loadState();
-    setState(s);
-    setAuthed(true);
-    hasLoaded.current = true;
-    setPassword("");
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    setAuthError(data?.error ?? "Login failed");
+    return;
   }
 
-  async function logout() {
-    await fetch("/api/logout", { method: "POST" });
-    setAuthed(false);
-    setState(null);
-    hasLoaded.current = false;
-  }
+  // ✅ after successful login, load synced state
+  const s = await loadState();
+  setState(s);
+  setAuthed(true);
+  hasLoaded.current = true;
+
+  // ✅ convert pantryText (stored string) -> extraItems rows (+ one empty row)
+  const parsed = (s.pantryText ?? "").split("\n").map((x) => x.trim()).filter(Boolean);
+  setExtraItems([...parsed, ""]);
+
+  setPassword("");
+}
+
+
+async function logout() {
+  await fetch("/api/logout", { method: "POST" });
+  setAuthed(false);
+  setState(null);
+  setExtraItems([""]); // ✅ reset
+  hasLoaded.current = false;
+}
 
   // ---- UI states ----
   if (authed === null) {
@@ -282,6 +422,13 @@ export default function Home() {
         </button>
       </header>
 
+{extraToast && (
+  <div className="fixed left-1/2 top-4 -translate-x-1/2 z-50">
+    <div className="rounded-full border bg-white px-4 py-2 shadow-sm text-sm animate-pulse">
+      {extraToast}
+    </div>
+  </div>
+)}
       <section className="grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
           <h2 className="text-xl font-semibold">Lisää resepti:</h2>
@@ -369,15 +516,56 @@ export default function Home() {
         </div>
 
         <div className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
-          <h2 className="text-xl font-semibold">Ostoslista:</h2>
-          <p className="text-sm opacity-80">Muita asiota kauppalistaan.</p>
-          <textarea
-            className="w-full rounded-xl border p-2 min-h-[240px]"
-            value={state.pantryText}
-            onChange={(e) => setState({ ...state, pantryText: e.target.value })}
-            placeholder="Yksi ainesosa per rivi"
-          />
-        </div>
+  <div className="flex items-center justify-between">
+    <h2 className="text-xl font-semibold">Ostoslista</h2>
+  </div>
+
+  <p className="text-sm opacity-80">Lisää tähän muut ostettavat.</p>
+
+  <div className="space-y-2">
+    {extraItems.map((val, idx) => (
+      <div key={idx} className="grid grid-cols-12 gap-2 items-center">
+        <input
+  ref={(el) => {
+    extraRefs.current[idx] = el;
+  }}
+  className="col-span-11 rounded-xl border p-2"
+  placeholder="esim. kahvi, wc-paperi..."
+  value={val}
+  onChange={(e) => updateExtraItemRow(idx, e.target.value)}
+  onKeyDown={(e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+
+      // Only add if current row has something
+      if (val.trim().length === 0) return;
+
+      setExtraItems((prev) => {
+        const next = [...prev];
+        next.push("");
+        return next;
+      });
+
+      showExtraToast("Lisätty ✓");
+
+      requestAnimationFrame(() => {
+        extraRefs.current[idx + 1]?.focus();
+      });
+    }
+  }}
+/>
+        <button
+          type="button"
+          onClick={() => removeExtraItemRow(idx)}
+          className="col-span-1 text-sm underline opacity-70 hover:opacity-100"
+          title="Poista"
+        >
+          ✕
+        </button>
+      </div>
+    ))}
+  </div>
+</div>
       </section>
 
       <section className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-4">
@@ -427,20 +615,42 @@ export default function Home() {
 
             <div className="rounded-2xl border p-3">
               <h3 className="font-semibold mb-2">Kauppalista</h3>
-              {shoppingList.length === 0 ? (
-                <p className="opacity-70">Ei tarvetta ostaa (tai kaikki on kotoa).</p>
-              ) : (
-                <ul className="space-y-2">
-                  {shoppingList.map((it) => (
-                    <li key={`${it.name}-${it.unit}`} className="flex justify-between gap-4">
-                      <span className="truncate">{it.name}</span>
-                      <span className="shrink-0 opacity-80">
-                        {Math.round(it.qty * 100) / 100} {it.unit}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
+
+<div className="flex justify-end">
+  <button
+    onClick={restoreShoppingList}
+    className="text-sm underline opacity-70 hover:opacity-100"
+    type="button"
+  >
+    Palauta kaikki
+  </button>
+</div>
+
+{visibleShoppingList.length === 0 ? (
+  <p className="opacity-70">Ei ostettavaa (tai kaikki poistettu listalta).</p>
+) : (
+  <ul className="space-y-2">
+    {visibleShoppingList.map((it) => (
+      <li key={`${it.name}-${it.unit}`} className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="truncate">{it.name}</div>
+          <span className="shrink-0 opacity-80">
+  {it.unit ? `${Math.round(it.qty * 100) / 100} ${it.unit}` : (it.qty > 1 ? `x${it.qty}` : "")}
+</span>
+
+        </div>
+
+        <button
+          type="button"
+          onClick={() => hideShoppingItem(it.name, it.unit)}
+          className="rounded-lg border px-2 py-1 text-sm hover:bg-black hover:text-white transition"
+        >
+          Poista
+        </button>
+      </li>
+    ))}
+  </ul>
+)}
             </div>
           </div>
         )}

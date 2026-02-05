@@ -9,6 +9,7 @@ const DEFAULT_STATE = {
   recipes: [],
   pantryText: "",
   picked: [],
+  hiddenShoppingKeys: [],
 };
 
 async function authed() {
