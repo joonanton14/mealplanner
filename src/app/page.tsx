@@ -352,12 +352,13 @@ export default function Home() {
 
           <div className="space-y-1">
             <label className="text-sm font-medium">Ohje:</label>
-            <input
-              className="w-full rounded-xl border p-2"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              placeholder="Ohjeet valmistukseen..."
-            />
+<textarea
+  className="w-full rounded-xl border p-2 min-h-[140px] resize-y whitespace-pre-wrap break-words"
+  value={notes}
+  onChange={(e) => setNotes(e.target.value)}
+  placeholder="Ohjeet valmistukseen..."
+  rows={6}
+/>
           </div>
 
           <button onClick={addRecipe} className="w-full rounded-xl bg-black text-white px-4 py-2">
