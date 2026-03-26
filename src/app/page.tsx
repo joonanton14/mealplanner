@@ -574,7 +574,20 @@ export default function Home() {
   }
 
   function updateIngredientRow(index: number, patch: Partial<Ingredient>) {
-    setDraftIngredients((prev) => prev.map((ing, i) => (i === index ? { ...ing, ...patch } : ing)));
+    setDraftIngredients((prev) => {
+      const next = prev.map((ing, i) => (i === index ? { ...ing, ...patch } : ing));
+
+      // While typing the ingredient name on the last row, auto-create a new empty row.
+      if (
+        typeof patch.name === "string" &&
+        patch.name.trim() !== "" &&
+        index === next.length - 1
+      ) {
+        next.push({ name: "", qty: 0, unit: "" });
+      }
+
+      return next;
+    });
   }
 
   function removeIngredientRow(index: number) {
