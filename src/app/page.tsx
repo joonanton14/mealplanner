@@ -99,6 +99,15 @@ async function saveState(state: AppState) {
 export default function Home() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [state, setState] = useState<AppState | null>(null);
+  const ingredientNameRefs = useRef<Array<HTMLInputElement | null>>([]);
+  const [confirmAddIngredient, setConfirmAddIngredient] = useState(false);
+
+  useEffect(() => {
+  if (!confirmAddIngredient) return;
+  const t = window.setTimeout(() => setConfirmAddIngredient(false), 2500);
+  return () => window.clearTimeout(t);
+  }, [confirmAddIngredient]);
+
 
   // Ostoslista (muut ostettavat): edited as rows, stored into state.pantryText as lines
   const [extraItems, setExtraItems] = useState<string[]>([""]);
@@ -129,7 +138,10 @@ export default function Home() {
   // New recipe form state
   const [recipeName, setRecipeName] = useState("");
   const [notes, setNotes] = useState("");
-  const [draftIngredients, setDraftIngredients] = useState<Ingredient[]>([]);
+  const [draftIngredients, setDraftIngredients] = useState<Ingredient[]>([
+  { name: "", qty: 0, unit: "" },
+    ]);
+
   const [formError, setFormError] = useState<string | null>(null);
 
   // avoid saving immediately after first load
@@ -303,22 +315,22 @@ export default function Home() {
 
     const name = recipeName.trim();
     if (!name) {
-      setFormError("Recipe name is required.");
+      setFormError("Add at least one ingredient name.");
       return;
     }
 
-    const ingredients = draftIngredients
-      .map((i) => ({
-        name: i.name.trim(),
-        qty: Number(i.qty),
-        unit: i.unit.trim(),
-      }))
-      .filter((i) => i.name && Number.isFinite(i.qty) && i.qty > 0 && i.unit);
+const ingredients = draftIngredients
+  .map((i) => ({
+    name: i.name.trim(),
+    qty: Number.isFinite(i.qty) && i.qty > 0 ? i.qty : 1,
+    unit: i.unit.trim(),
+  }))
+  .filter((i) => i.name);
 
-    if (ingredients.length === 0) {
-      setFormError("Add at least one ingredient (name, qty > 0, unit).");
-      return;
-    }
+if (ingredients.length === 0) {
+  setFormError("Add at least one ingredient name.");
+  return;
+}
 
     const r: Recipe = {
       id: uid(),
@@ -334,6 +346,13 @@ export default function Home() {
     setDraftIngredients([{ name: "", qty: 0, unit: "" }]);
     showExtraToast("Lisätty ✓", "add");
 
+  }
+
+  function addIngredientRowAndFocus(nextIndex: number) {
+  addIngredientRow();
+  requestAnimationFrame(() => {
+    ingredientNameRefs.current[nextIndex]?.focus();
+  });
   }
 
   function removeRecipe(id: string) {
@@ -403,7 +422,7 @@ export default function Home() {
   // ---- UI states ----
   if (authed === null) {
     return (
-      <main className="mx-auto max-w-xl p-6">
+      <main className="meal-app mx-auto max-w-xl p-6">
         <h1 className="text-2xl font-bold">MealPlanner</h1>
         <p className="opacity-70 mt-2">Loading…</p>
       </main>
@@ -412,7 +431,7 @@ export default function Home() {
 
   if (!authed) {
     return (
-      <main className="mx-auto max-w-xl p-6 space-y-4">
+      <main className="meal-app mx-auto max-w-xl p-6 space-y-4">
         <h1 className="text-3xl font-bold">MealPlanner</h1>
         <p className="opacity-80">Syötä salasana</p>
 
@@ -437,7 +456,7 @@ export default function Home() {
   if (!state) return null;
 
   return (
-    <main className="mx-auto max-w-5xl p-6 space-y-6">
+    <main className="meal-app mx-auto max-w-5xl p-6 space-y-6">
       {extraToast && (
       <div
         className="fixed right-4 z-50"
@@ -484,41 +503,94 @@ export default function Home() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-sm font-medium">Ainesosat</label>
-              <button
-                type="button"
-                onClick={addIngredientRow}
-                className="rounded-lg border px-2 py-1 text-sm hover:bg-black hover:text-white transition"
-              >
-                + lisää ainesosa
-              </button>
+{confirmAddIngredient ? (
+  <div className="flex gap-2">
+    <button
+      type="button"
+      onClick={() => {
+        addIngredientRow();
+        setConfirmAddIngredient(false);
+        showExtraToast("Lisätty ✓", "add");
+      }}
+      className="rounded-lg bg-green-600 text-white px-2 py-1 text-xs hover:bg-green-700 transition"
+    >
+      Vahvista
+    </button>
+    <button
+      type="button"
+      onClick={() => setConfirmAddIngredient(false)}
+      className="rounded-lg border px-2 py-1 text-xs opacity-80 hover:opacity-100 transition"
+    >
+      Peruuta
+    </button>
+  </div>
+) : (
+  <button
+    type="button"
+    onClick={() => setConfirmAddIngredient(true)}
+    className="rounded-lg border px-2 py-1 text-sm hover:bg-black hover:text-white transition"
+  >
+    + lisää ainesosa
+  </button>
+)}
+
             </div>
 
             <div className="space-y-2">
               {draftIngredients.map((ing, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-                  <input
-                    className="col-span-6 rounded-xl border p-2"
-                    placeholder="Ainesosan nimi"
-                    value={ing.name}
-                    onChange={(e) => updateIngredientRow(idx, { name: e.target.value })}
-                  />
+<input
+  ref={(el) => {
+    ingredientNameRefs.current[idx] = el;
+  }}
+  className="col-span-6 rounded-xl border p-2"
+  placeholder="Ainesosan nimi"
+  value={ing.name}
+  onChange={(e) => updateIngredientRow(idx, { name: e.target.value })}
+  onKeyDown={(e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (!ing.name.trim()) return;
 
-                  <input
-                    className="col-span-3 rounded-xl border p-2"
-                    type="number"
-                    min={0}
-                    step="0.1"
-                    placeholder="määrä"
-                    value={ing.qty === 0 ? "" : String(ing.qty)}
-                    onChange={(e) => updateIngredientRow(idx, { qty: Number(e.target.value) })}
-                  />
+    addIngredientRow();
+    requestAnimationFrame(() => ingredientNameRefs.current[idx + 1]?.focus());
+  }}
+/>
 
-                  <input
-                    className="col-span-2 rounded-xl border p-2"
-                    placeholder="yksikkö"
-                    value={ing.unit}
-                    onChange={(e) => updateIngredientRow(idx, { unit: e.target.value })}
-                  />
+
+<input
+  className="col-span-3 rounded-xl border p-2"
+  type="number"
+  min={0}
+  step="0.1"
+  placeholder="määrä"
+  value={ing.qty === 0 ? "" : String(ing.qty)}
+  onChange={(e) => updateIngredientRow(idx, { qty: Number(e.target.value) })}
+  onKeyDown={(e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (!ing.name.trim()) return;
+
+    addIngredientRow();
+    requestAnimationFrame(() => ingredientNameRefs.current[idx + 1]?.focus());
+  }}
+/>
+
+<input
+  className="col-span-2 rounded-xl border p-2"
+  placeholder="yksikkö"
+  value={ing.unit}
+  onChange={(e) => updateIngredientRow(idx, { unit: e.target.value })}
+  onKeyDown={(e) => {
+    if (e.key !== "Enter") return;
+    e.preventDefault();
+    if (!ing.name.trim()) return;
+
+    addIngredientRow();
+    requestAnimationFrame(() => ingredientNameRefs.current[idx + 1]?.focus());
+  }}
+/>
+
 
                   <button
                     type="button"

@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f3f6ed;
+  --foreground: #1b2a24;
+  --surface: #fbfdf8;
+  --surface-strong: #ffffff;
+  --border: #d2ddcd;
+  --accent: #2f8f72;
+  --accent-strong: #1f6f58;
+  --danger: #b14545;
 }
 
 @theme inline {
@@ -12,16 +18,115 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+body {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 0% 0%, #e2f4ea 0%, transparent 38%),
+    radial-gradient(circle at 100% 20%, #e0efe6 0%, transparent 36%),
+    linear-gradient(180deg, #f7faf4 0%, var(--background) 100%);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), "Segoe UI", sans-serif;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: radial-gradient(rgba(17, 33, 28, 0.08) 0.6px, transparent 0.6px);
+  background-size: 8px 8px;
+  opacity: 0.22;
+  z-index: -1;
+}
+
+.meal-app h1,
+.meal-app h2,
+.meal-app h3 {
+  letter-spacing: -0.02em;
+}
+
+.meal-app .rounded-2xl.border {
+  border-color: var(--border);
+  background: color-mix(in oklab, var(--surface) 86%, white);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 14px 40px rgba(22, 48, 39, 0.09);
+}
+
+.meal-app input,
+.meal-app textarea {
+  border-color: var(--border);
+  background: var(--surface-strong);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background-color 160ms ease;
+}
+
+.meal-app input:focus,
+.meal-app textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+
+.meal-app button {
+  transition: transform 120ms ease, box-shadow 160ms ease, background-color 160ms ease, color 160ms ease;
+}
+
+.meal-app button:hover {
+  transform: translateY(-1px);
+}
+
+.meal-app button:active {
+  transform: translateY(0);
+}
+
+.meal-app button[class*="bg-black"] {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  border: 1px solid color-mix(in oklab, var(--accent-strong) 70%, black);
+  box-shadow: 0 6px 14px rgba(35, 111, 87, 0.3);
+}
+
+.meal-app button[class*="bg-red-600"] {
+  background: linear-gradient(135deg, #c95050 0%, var(--danger) 100%);
+  border: 1px solid color-mix(in oklab, var(--danger) 65%, black);
+}
+
+.meal-app button[class*="border"] {
+  border-color: var(--border);
+  background: color-mix(in oklab, var(--surface) 84%, white);
+}
+
+.meal-app > * {
+  animation: mealFadeUp 440ms ease both;
+}
+
+.meal-app > *:nth-child(2) {
+  animation-delay: 40ms;
+}
+
+.meal-app > *:nth-child(3) {
+  animation-delay: 80ms;
+}
+
+.meal-app > *:nth-child(4) {
+  animation-delay: 120ms;
+}
+
+@keyframes mealFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+@media (max-width: 768px) {
+  body {
+    background:
+      radial-gradient(circle at 10% 0%, #e2f4ea 0%, transparent 44%),
+      linear-gradient(180deg, #f7faf4 0%, var(--background) 100%);
+  }
 }
 
