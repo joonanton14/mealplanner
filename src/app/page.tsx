@@ -263,35 +263,149 @@ export default function Home() {
     const name = lines[0];
     const ingredients: Ingredient[] = [];
     const notesLines: string[] = [];
-    const unitPattern = /^([0-9.,]+)\s*(g|dl|rkl|tl|kpl|pkt|prk)\s+(.+)$/i;
-    const qtyOnlyPattern = /^([0-9.,]+)\s+(.+)$/i;
-    let parsingIngredients = true;
 
-    for (const line of lines.slice(1)) {
-      const match = unitPattern.exec(line);
-      if (match && parsingIngredients) {
-        const qty = parseFloat(match[1].replace(",", "."));
-        const unit = match[2].toLowerCase();
-        const ingName = match[3];
-        ingredients.push({ name: ingName, qty: isNaN(qty) ? 1 : qty, unit });
-      } else if (parsingIngredients && qtyOnlyPattern.test(line)) {
-        const qtyMatch = qtyOnlyPattern.exec(line)!;
-        const qty = parseFloat(qtyMatch[1].replace(",", "."));
-        const ingName = qtyMatch[2];
-        ingredients.push({ name: ingName, qty: isNaN(qty) ? 1 : qty, unit: "" });
-      } else if (line.match(/^[-•*]/)) {
-        const ingName = line.replace(/^[-•*\s]+/, "");
-        ingredients.push({ name: ingName, qty: 1, unit: "kpl" });
-      } else {
-        parsingIngredients = false;
+    // Normalise Unicode fraction characters to decimals
+    function toFrac(s: string): string {
+      return s
+        .replace(/½/g, "0.5").replace(/¼/g, "0.25").replace(/¾/g, "0.75")
+        .replace(/⅓/g, "0.333").replace(/⅔/g, "0.667");
+    }
+    function parseNum(s: string): number {
+      return parseFloat(toFrac(s).replace(",", "."));
+    }
+
+    // Does the line start with a digit or fraction character?
+    function isQtyLine(s: string): boolean {
+      return /^[0-9½¼¾⅓⅔]/.test(s);
+    }
+
+    // Is the line purely a quantity (number + optional known unit, no ingredient name)?
+    // e.g. "300 g", "3", "½ tl", "1 prk (190 g/95 g)", "2 rkl"
+    function isQtyOnlyLine(s: string): boolean {
+      if (!isQtyLine(s)) return false;
+      const norm = toFrac(s);
+      if (/^[0-9.,]+\s*$/.test(norm)) return true;
+      const m = /^[0-9.,]+\s*(g|dl|rkl|tl|kpl|pkt|prk|ps|tlk|l|kg|ruukkua|rs)\s*(.*)?$/i.exec(norm);
+      if (!m) return false;
+      const rest = (m[2] ?? "").trim();
+      return rest === "" || rest.startsWith("(");
+    }
+
+    // Extract qty + unit from a qty-only line
+    function parseQty(s: string): { qty: number; unit: string } {
+      const norm = toFrac(s);
+      const m = /^([0-9.,]+)\s*(g|dl|rkl|tl|kpl|pkt|prk|ps|tlk|l|kg|ruukkua|rs)?\b/i.exec(norm);
+      if (!m) return { qty: 1, unit: "" };
+      return { qty: parseNum(m[1]) || 1, unit: m[2] ? m[2].toLowerCase() : "" };
+    }
+
+    let inNotes = false;
+    let i = 1;
+
+    while (i < lines.length) {
+      const line = lines[i];
+
+      if (inNotes) {
+        notesLines.push(line);
+        i++;
+        continue;
+      }
+
+      const next      = i + 1 < lines.length ? lines[i + 1] : undefined;
+      const afterNext = i + 2 < lines.length ? lines[i + 2] : undefined;
+
+      if (!isQtyLine(line)) {
+        // ── Text line ────────────────────────────────────────────────────────
+
+        // Format B: "name\nqty[\nqty duplicate]"
+        if (next !== undefined && isQtyOnlyLine(next)) {
+          const { qty, unit } = parseQty(next);
+          ingredients.push({ name: line, qty, unit });
+          // skip an identical duplicate qty line if present
+          i += 2 + (afterNext === next ? 1 : 0);
+          continue;
+        }
+
+        const looksLikeInstruction =
+          line.endsWith(".") || line.endsWith("!") || line.endsWith("?") ||
+          /^(Vaihe|Step|Ohje)\s/i.test(line) ||
+          line.length > 70;
+
+        // Format C: "name qty" — trailing bare number, e.g. "mustapippuria 1"
+        const matchC = /^(.+?)\s+([0-9]+(?:[.,][0-9]+)?)$/.exec(line);
+        if (matchC && !looksLikeInstruction) {
+          const qty = parseNum(matchC[2]);
+          ingredients.push({ name: matchC[1].trim(), qty: isNaN(qty) ? 1 : qty, unit: "" });
+          i++;
+          continue;
+        }
+
+        // Bullet-point ingredient: "- name"
+        if (line.match(/^[-•*]/)) {
+          ingredients.push({ name: line.replace(/^[-•*\s]+/, ""), qty: 1, unit: "kpl" });
+          i++;
+          continue;
+        }
+
+        if (looksLikeInstruction && ingredients.length > 0) {
+          inNotes = true;
+          notesLines.push(line);
+          i++;
+          continue;
+        }
+
+        // Short text with no qty following → ingredient without quantity
+        if (ingredients.length > 0) {
+          ingredients.push({ name: line, qty: 1, unit: "" });
+        }
+        i++;
+        continue;
+      }
+
+      // ── Qty line ─────────────────────────────────────────────────────────
+
+      if (!isQtyOnlyLine(line)) {
+        // Has both qty and ingredient name on one line
+        const norm = toFrac(line);
+
+        // Format A: "qty unit name"
+        const matchA = /^([0-9.,]+)\s*(g|dl|rkl|tl|kpl|pkt|prk|ps|tlk|l|kg)\s+(.+)$/i.exec(norm);
+        if (matchA) {
+          const qty = parseNum(matchA[1]);
+          ingredients.push({ name: matchA[3].trim(), qty: isNaN(qty) ? 1 : qty, unit: matchA[2].toLowerCase() });
+          i++;
+          continue;
+        }
+
+        // Format: "qty name" without unit, e.g. "2 kananmunaa"
+        const matchQN = /^([0-9.,]+)\s+(.+)$/.exec(norm);
+        if (matchQN) {
+          const qty = parseNum(matchQN[1]);
+          ingredients.push({ name: matchQN[2].trim(), qty: isNaN(qty) ? 1 : qty, unit: "" });
+          i++;
+          continue;
+        }
+      }
+
+      // Pure qty-only line appearing "out of context" (not consumed by Format B):
+      // serving-size line at the start, or step number inside instructions.
+      if (ingredients.length > 0) {
+        inNotes = true;
         notesLines.push(line);
       }
+      // else skip (serving info before first ingredient)
+      i++;
     }
+
+    // Strip website step-marker noise from notes ("Vaihe 2 tehty", standalone "2")
+    const cleanNotes = notesLines
+      .filter((l) => !/^Vaihe\s+\d/i.test(l) && !/^\d+$/.test(l))
+      .join("\n");
 
     return {
       name,
       ingredients: ingredients.length > 0 ? ingredients : [{ name: "", qty: 0, unit: "" }],
-      notes: notesLines.join("\n"),
+      notes: cleanNotes,
     };
   }
 
