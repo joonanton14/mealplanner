@@ -246,6 +246,7 @@ export default function Home() {
   ]);
 
   const [formError, setFormError] = useState<string | null>(null);
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
 
   // Paste-and-parse modal
   const [pasteMode, setPasteMode] = useState(false);
@@ -642,6 +643,84 @@ export default function Home() {
 
   }
 
+  function startEditRecipe(recipeId: string) {
+    if (!state) return;
+    const recipe = state.recipes.find((r) => r.id === recipeId);
+    if (!recipe) return;
+
+    setEditingRecipeId(recipe.id);
+    setRecipeName(recipe.name);
+    setNotes(recipe.notes ?? "");
+    setDraftIngredients([
+      ...recipe.ingredients.map((i) => ({
+        name: i.name,
+        qty: i.qty,
+        unit: i.unit,
+      })),
+      { name: "", qty: 0, unit: "" },
+    ]);
+    setFormError(null);
+  }
+
+  function cancelEditRecipe() {
+    setEditingRecipeId(null);
+    setRecipeName("");
+    setNotes("");
+    setDraftIngredients([{ name: "", qty: 0, unit: "" }]);
+    setFormError(null);
+  }
+
+  function saveEditedRecipe() {
+    if (!state || !editingRecipeId) return;
+    setFormError(null);
+
+    const name = recipeName.trim();
+    if (!name) {
+      setFormError("Lisää reseptin nimi.");
+      return;
+    }
+
+    const duplicate = state.recipes.some(
+      (r) => r.id !== editingRecipeId && normalizeName(r.name) === normalizeName(name)
+    );
+    if (duplicate) {
+      setFormError("Resepti tällä nimellä on jo olemassa.");
+      return;
+    }
+
+    const ingredients = draftIngredients
+      .map((i) => ({
+        name: i.name.trim(),
+        qty: Number.isFinite(i.qty) && i.qty > 0 ? Number(i.qty) : 1,
+        unit: i.unit.trim(),
+      }))
+      .filter((i) => i.name);
+
+    if (ingredients.length === 0) {
+      setFormError("Lisää vähintään yksi ainesosa.");
+      return;
+    }
+
+    const updatedRecipes = state.recipes.map((r) =>
+      r.id === editingRecipeId
+        ? {
+            ...r,
+            name,
+            ingredients,
+            notes: notes.trim() || undefined,
+          }
+        : r
+    );
+
+    const updatedPicked = state.picked.map((p) =>
+      p.recipeId === editingRecipeId ? { ...p, name } : p
+    );
+
+    setState({ ...state, recipes: updatedRecipes, picked: updatedPicked });
+    cancelEditRecipe();
+    showExtraToast("Tallennettu ✓", "add");
+  }
+
   function removeRecipe(id: string) {
     if (!state) return;
     setState({
@@ -990,7 +1069,9 @@ export default function Home() {
       <section className="grid gap-4 md:grid-cols-2">
         {/* Add recipe */}
         <div className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
-          <h2 className="text-xl font-semibold">Lisää resepti</h2>
+          <h2 className="text-xl font-semibold">
+            {editingRecipeId ? "Muokkaa reseptiä" : "Lisää resepti"}
+          </h2>
 
           <div className="space-y-1">
             <label className="text-sm font-medium">Reseptin nimi</label>
@@ -1085,16 +1166,32 @@ export default function Home() {
             />
           </div>
 
-          <button onClick={addRecipe} className="w-full rounded-xl bg-black text-white px-4 py-2">
-            Lisää resepti
-          </button>
+          {editingRecipeId ? (
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={saveEditedRecipe} className="rounded-xl bg-black text-white px-4 py-2">
+                Tallenna muutokset
+              </button>
+              <button
+                onClick={cancelEditRecipe}
+                className="rounded-xl border px-4 py-2 hover:bg-gray-100 transition"
+              >
+                Peruuta
+              </button>
+            </div>
+          ) : (
+            <button onClick={addRecipe} className="w-full rounded-xl bg-black text-white px-4 py-2">
+              Lisää resepti
+            </button>
+          )}
 
-          <button
-            onClick={() => setPasteMode(true)}
-            className="w-full rounded-xl border px-4 py-2 hover:bg-gray-100 transition"
-          >
-            📋 Tai liitä resepti
-          </button>
+          {!editingRecipeId && (
+            <button
+              onClick={() => setPasteMode(true)}
+              className="w-full rounded-xl border px-4 py-2 hover:bg-gray-100 transition"
+            >
+              📋 Tai liitä resepti
+            </button>
+          )}
 
           {formError && <p className="text-red-600 text-sm">{formError}</p>}
         </div>
@@ -1333,14 +1430,22 @@ export default function Home() {
                       </button>
                     </div>
                   ) : (
-                    <button
-                      onClick={() => {
-                        setConfirmRecipeDeleteId(r.id);
-                      }}
-                      className="rounded-lg bg-red-600 text-white px-2 py-1 text-xs hover:bg-red-700 transition"
-                    >
-                      ✕
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startEditRecipe(r.id)}
+                        className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-100 transition"
+                      >
+                        Muokkaa
+                      </button>
+                      <button
+                        onClick={() => {
+                          setConfirmRecipeDeleteId(r.id);
+                        }}
+                        className="rounded-lg bg-red-600 text-white px-2 py-1 text-xs hover:bg-red-700 transition"
+                      >
+                        ✕
+                      </button>
+                    </div>
                   )}
                 </div>
 
