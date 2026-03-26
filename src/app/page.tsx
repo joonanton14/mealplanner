@@ -190,6 +190,9 @@ export default function Home() {
 
   // Shopping mode overlay
   const [shopMode, setShopMode] = useState(false);
+  const [cookingRecipeId, setCookingRecipeId] = useState<string | null>(null);
+  const [cookingStepIndex, setCookingStepIndex] = useState(0);
+  const [checkedCookingIngredients, setCheckedCookingIngredients] = useState<Record<string, boolean>>({});
   const [checkedKeys, setCheckedKeys] = useState<Set<string>>(new Set());
   const [shopOrder, setShopOrder] = useState<string[]>([]);
 
@@ -567,6 +570,40 @@ export default function Home() {
     });
   }, [state, recipeSearch]);
 
+  const cookingRecipe = useMemo(() => {
+    if (!state || !cookingRecipeId) return null;
+    return state.recipes.find((recipe) => recipe.id === cookingRecipeId) ?? null;
+  }, [state, cookingRecipeId]);
+
+  const cookingSteps = useMemo(() => {
+    if (!cookingRecipe?.notes) return [];
+
+    return cookingRecipe.notes
+      .split(/\n+/)
+      .map((step) => step.trim())
+      .filter(Boolean);
+  }, [cookingRecipe]);
+
+  function openCookingMode(recipeId: string) {
+    setCookingRecipeId(recipeId);
+    setCookingStepIndex(0);
+    setCheckedCookingIngredients({});
+  }
+
+  function closeCookingMode() {
+    setCookingRecipeId(null);
+    setCookingStepIndex(0);
+    setCheckedCookingIngredients({});
+  }
+
+  function toggleCookingIngredient(recipeId: string, ingredientIndex: number) {
+    const key = `${recipeId}:${ingredientIndex}`;
+    setCheckedCookingIngredients((prev) => ({
+      ...prev,
+      [key]: !prev[key],
+    }));
+  }
+
   function restoreShoppingList() {
     if (!state) return;
     setState({ ...state, hiddenShoppingKeys: [] });
@@ -875,6 +912,144 @@ export default function Home() {
   }
 
   if (!state) return null;
+
+  if (cookingRecipe) {
+    const activeStep = cookingSteps[cookingStepIndex] ?? null;
+
+    return (
+      <main className="meal-app fixed inset-0 z-50 overflow-y-auto bg-stone-950 text-stone-50">
+        <div className="mx-auto flex min-h-full max-w-3xl flex-col gap-6 px-5 py-6">
+          <header className="flex items-start justify-between gap-4 border-b border-white/10 pb-4">
+            <div className="space-y-2">
+              <p className="text-sm uppercase tracking-[0.2em] text-stone-400">Cooking mode</p>
+              <h1 className="text-3xl font-bold leading-tight sm:text-4xl">{cookingRecipe.name}</h1>
+              <p className="text-sm text-stone-400">
+                {cookingRecipe.ingredients.length} ainesosaa
+                {cookingSteps.length > 0 ? ` • vaihe ${Math.min(cookingStepIndex + 1, cookingSteps.length)}/${cookingSteps.length}` : ""}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={closeCookingMode}
+              className="rounded-xl border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/10 transition"
+            >
+              Sulje
+            </button>
+          </header>
+
+          <section className="rounded-3xl bg-white/5 p-5 shadow-2xl ring-1 ring-white/10">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold">Ainekset</h2>
+              <span className="text-sm text-stone-400">
+                {cookingRecipe.ingredients.filter((_, index) => checkedCookingIngredients[`${cookingRecipe.id}:${index}`]).length}/{cookingRecipe.ingredients.length}
+              </span>
+            </div>
+
+            <ul className="space-y-3">
+              {cookingRecipe.ingredients.map((ingredient, index) => {
+                const key = `${cookingRecipe.id}:${index}`;
+                const checked = checkedCookingIngredients[key] === true;
+
+                return (
+                  <li key={key}>
+                    <button
+                      type="button"
+                      onClick={() => toggleCookingIngredient(cookingRecipe.id, index)}
+                      className={`flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left transition ${
+                        checked
+                          ? "border-emerald-500/40 bg-emerald-500/15 text-stone-300"
+                          : "border-white/10 bg-white/5 hover:bg-white/10"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-bold ${
+                          checked ? "border-emerald-400 bg-emerald-400 text-stone-950" : "border-white/20 text-stone-300"
+                        }`}
+                      >
+                        {checked ? "✓" : index + 1}
+                      </span>
+                      <span className="min-w-0 flex-1 text-xl leading-snug">
+                        <span className={checked ? "line-through opacity-60" : ""}>{ingredient.name}</span>
+                      </span>
+                      <span className={`shrink-0 text-lg ${checked ? "opacity-60" : "text-stone-300"}`}>
+                        {ingredient.qty} {ingredient.unit}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+
+          <section className="flex-1 rounded-3xl bg-amber-50 p-5 text-stone-900 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <h2 className="text-xl font-semibold">Ohjeet</h2>
+              {cookingSteps.length > 0 && (
+                <span className="rounded-full bg-stone-900 px-3 py-1 text-sm font-medium text-white">
+                  {cookingStepIndex + 1}/{cookingSteps.length}
+                </span>
+              )}
+            </div>
+
+            {cookingSteps.length === 0 ? (
+              <p className="text-lg leading-relaxed text-stone-600">Tälle reseptille ei ole tallennettu ohjeita.</p>
+            ) : (
+              <div className="space-y-6">
+                <div className="rounded-3xl bg-white px-5 py-6 shadow-inner">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-400">Nykyinen vaihe</p>
+                  <p className="mt-4 text-3xl font-semibold leading-tight sm:text-4xl">{activeStep}</p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setCookingStepIndex((prev) => Math.max(prev - 1, 0))}
+                    disabled={cookingStepIndex === 0}
+                    className="rounded-2xl bg-stone-900 px-4 py-4 text-lg font-medium text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    Edellinen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCookingStepIndex((prev) => Math.min(prev + 1, cookingSteps.length - 1))}
+                    disabled={cookingStepIndex >= cookingSteps.length - 1}
+                    className="rounded-2xl bg-orange-500 px-4 py-4 text-lg font-medium text-white disabled:cursor-not-allowed disabled:opacity-30"
+                  >
+                    Seuraava
+                  </button>
+                </div>
+
+                <div className="space-y-3 rounded-3xl border border-stone-200 bg-white p-4">
+                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-400">Kaikki vaiheet</p>
+                  <ol className="space-y-3">
+                    {cookingSteps.map((step, index) => (
+                      <li key={`${cookingRecipe.id}-step-${index}`}>
+                        <button
+                          type="button"
+                          onClick={() => setCookingStepIndex(index)}
+                          className={`w-full rounded-2xl px-4 py-3 text-left text-lg transition ${
+                            index === cookingStepIndex
+                              ? "bg-stone-900 text-white"
+                              : "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                          }`}
+                        >
+                          <span className="mr-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/10 text-sm font-bold">
+                            {index + 1}
+                          </span>
+                          {step}
+                        </button>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      </main>
+    );
+  }
 
   // ---- Shopping mode overlay ----
   if (shopMode) {
@@ -1515,6 +1690,13 @@ export default function Home() {
                     </div>
                   ) : (
                     <div className="flex flex-wrap justify-end gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => openCookingMode(r.id)}
+                        className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-100 transition"
+                      >
+                        Kokkaa
+                      </button>
                       <button
                         onClick={() => startEditRecipe(r.id)}
                         className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-100 transition"
