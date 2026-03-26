@@ -958,7 +958,7 @@ export default function Home() {
                       onClick={() => toggleCookingIngredient(cookingRecipe.id, index)}
                       className={`flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left transition ${
                         checked
-                          ? "border-emerald-500/40 bg-emerald-500/15 text-white"
+                          ? "border-emerald-400/60 bg-emerald-900/60 text-white"
                           : "border-white/10 bg-white/5 text-white hover:bg-white/10"
                       }`}
                     >
@@ -969,10 +969,10 @@ export default function Home() {
                       >
                         {checked ? "✓" : index + 1}
                       </span>
-                      <span className="min-w-0 flex-1 text-xl leading-snug">
-                        <span className={checked ? "line-through opacity-60" : ""}>{ingredient.name}</span>
+                      <span className="min-w-0 flex-1 text-xl leading-snug text-white">
+                        <span className={checked ? "line-through opacity-90" : ""}>{ingredient.name}</span>
                       </span>
-                      <span className={`shrink-0 text-lg ${checked ? "opacity-60" : "text-stone-100"}`}>
+                      <span className={`shrink-0 text-lg ${checked ? "text-emerald-100" : "text-stone-100"}`}>
                         {ingredient.qty} {ingredient.unit}
                       </span>
                     </button>
@@ -1001,29 +1001,6 @@ export default function Home() {
                   <p className="mt-4 text-3xl font-semibold leading-tight text-stone-950 sm:text-4xl">{activeStep}</p>
                 </div>
 
-                <div className="space-y-3 rounded-3xl border border-stone-200 bg-white p-4">
-                  <p className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-500">Kaikki vaiheet</p>
-                  <ol className="space-y-3">
-                    {cookingSteps.map((step, index) => (
-                      <li key={`${cookingRecipe.id}-step-${index}`}>
-                        <button
-                          type="button"
-                          onClick={() => setCookingStepIndex(index)}
-                          className={`w-full rounded-2xl px-4 py-3 text-left text-lg transition ${
-                            index === cookingStepIndex
-                              ? "bg-stone-900 text-white"
-                              : "bg-stone-100 text-stone-700 hover:bg-stone-200"
-                          }`}
-                        >
-                          <span className="mr-3 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/10 text-sm font-bold">
-                            {index + 1}
-                          </span>
-                          {step}
-                        </button>
-                      </li>
-                    ))}
-                  </ol>
-                </div>
               </div>
             )}
           </section>
