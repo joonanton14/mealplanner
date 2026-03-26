@@ -130,13 +130,18 @@ function SortableShopItem({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 20 : undefined }}
-      className={`flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-100 ${
+      className={`flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-100 cursor-grab active:cursor-grabbing touch-none ${
         isDragging ? "shadow-2xl rounded-2xl" : ""
       }`}
+      {...attributes}
+      {...listeners}
     >
       {/* Check circle */}
       <div
-        onClick={onToggle}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
         className={`shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center cursor-pointer transition ${
           checked ? "border-green-500 bg-green-500 text-white" : "border-gray-300"
         }`}
@@ -151,7 +156,10 @@ function SortableShopItem({
       {/* Name */}
       <div
         className={`flex-1 min-w-0 cursor-pointer ${checked ? "opacity-40" : ""}`}
-        onClick={onToggle}
+        onClick={(e) => {
+          e.stopPropagation();
+          onToggle();
+        }}
       >
         <span className={`text-lg font-medium ${checked ? "line-through" : ""}`}>{name}</span>
       </div>
@@ -160,23 +168,6 @@ function SortableShopItem({
       {amount && (
         <span className={`shrink-0 text-base text-gray-500 ${checked ? "opacity-40" : ""}`}>{amount}</span>
       )}
-
-      {/* Drag handle */}
-      <div
-        {...attributes}
-        {...listeners}
-        className="shrink-0 w-10 h-10 flex items-center justify-center text-gray-300 cursor-grab active:cursor-grabbing touch-none"
-        aria-label="Siirrä"
-      >
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-          <circle cx="7" cy="5" r="1.5" />
-          <circle cx="13" cy="5" r="1.5" />
-          <circle cx="7" cy="10" r="1.5" />
-          <circle cx="13" cy="10" r="1.5" />
-          <circle cx="7" cy="15" r="1.5" />
-          <circle cx="13" cy="15" r="1.5" />
-        </svg>
-      </div>
     </li>
   );
 }
@@ -207,7 +198,7 @@ export default function Home() {
   }
 
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
   );
 
