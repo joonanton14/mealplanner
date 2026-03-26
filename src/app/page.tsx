@@ -247,6 +247,58 @@ export default function Home() {
 
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Paste-and-parse modal
+  const [pasteMode, setPasteMode] = useState(false);
+  const [pastedText, setPastedText] = useState("");
+  const [parsedRecipe, setParsedRecipe] = useState<{
+    name: string;
+    ingredients: Ingredient[];
+    notes: string;
+  } | null>(null);
+
+  function parseRecipeText(text: string) {
+    const lines = text.split("\n").map((l) => l.trim()).filter(Boolean);
+    if (lines.length === 0) return null;
+
+    const name = lines[0];
+    const ingredients: Ingredient[] = [];
+    const notesLines: string[] = [];
+    const unitPatterns = /^([0-9.,]+)\s*(g|dl|rkl|tl|kpl|pkt|prk)\s+(.+)$/i;
+    let parsingIngredients = true;
+
+    for (const line of lines.slice(1)) {
+      const match = unitPatterns.exec(line);
+      if (match && parsingIngredients) {
+        const qty = parseFloat(match[1].replace(",", "."));
+        const unit = match[2].toLowerCase();
+        const ingName = match[3];
+        ingredients.push({ name: ingName, qty: isNaN(qty) ? 1 : qty, unit });
+      } else if (line.match(/^[-•*]/)) {
+        const ingName = line.replace(/^[-•*\s]+/, "");
+        ingredients.push({ name: ingName, qty: 1, unit: "kpl" });
+      } else {
+        parsingIngredients = false;
+        notesLines.push(line);
+      }
+    }
+
+    return {
+      name,
+      ingredients: ingredients.length > 0 ? ingredients : [{ name: "", qty: 0, unit: "" }],
+      notes: notesLines.join("\n"),
+    };
+  }
+
+  function applyParsedRecipe(recipe: typeof parsedRecipe) {
+    if (!recipe) return;
+    setRecipeName(recipe.name);
+    setNotes(recipe.notes);
+    setDraftIngredients(recipe.ingredients);
+    setPasteMode(false);
+    setPastedText("");
+    setParsedRecipe(null);
+  }
+
   // avoid saving immediately after first load
   const hasLoaded = useRef(false);
   const saveTimer = useRef<number | null>(null);
@@ -612,6 +664,166 @@ export default function Home() {
     );
   }
 
+  // ---- Paste-and-parse modal ----
+  if (pasteMode) {
+    return (
+      <div className="meal-app fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-4 p-6">
+          <h2 className="text-2xl font-bold">Liitä resepti</h2>
+
+          {!parsedRecipe ? (
+            <>
+              <p className="text-sm text-gray-600">
+                Liitä koko resepti (nimi, ainekset ja ohjeet). Ohjelma erottaa ainekset automaattisesti.
+              </p>
+              <textarea
+                className="w-full rounded-xl border p-3 min-h-[300px] font-mono text-sm"
+                placeholder="Esim.&#10;Kanakastike&#10;450g kanafileesuikale&#10;2 dl ruokakerma&#10;2 rkl hunaja&#10;&#10;Paista suikaleet kypsäksi. Lisää kerma, hunaja ja mausta.&#10;..."
+                value={pastedText}
+                onChange={(e) => setPastedText(e.target.value)}
+              />
+              <div className="flex gap-3">
+                <button
+                  onClick={() => {
+                    const parsed = parseRecipeText(pastedText);
+                    if (parsed) setParsedRecipe(parsed);
+                    else alert("Ei löytynyt ingredienssejä. Yritä uudelleen.");
+                  }}
+                  className="flex-1 rounded-xl bg-black text-white px-4 py-2 hover:opacity-80 transition"
+                >
+                  Jäsennä
+                </button>
+                <button
+                  onClick={() => {
+                    setPasteMode(false);
+                    setPastedText("");
+                  }}
+                  className="flex-1 rounded-xl border px-4 py-2 hover:bg-gray-100 transition"
+                >
+                  Peruuta
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h3 className="text-lg font-semibold">Tarkista ja muokkaa</h3>
+
+              <div className="space-y-3">
+                <div>
+                  <label className="text-sm font-medium">Nimi</label>
+                  <input
+                    className="w-full rounded-xl border p-2 mt-1"
+                    value={parsedRecipe.name}
+                    onChange={(e) =>
+                      setParsedRecipe({ ...parsedRecipe, name: e.target.value })
+                    }
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Ainekset ({parsedRecipe.ingredients.length})</label>
+                  <div className="space-y-1.5 mt-2">
+                    {parsedRecipe.ingredients.map((ing, idx) => (
+                      <div key={idx} className="grid grid-cols-12 gap-2 items-start">
+                        <input
+                          className="col-span-6 rounded-lg border p-1.5 text-sm"
+                          placeholder="Ainesosan nimi"
+                          value={ing.name}
+                          onChange={(e) => {
+                            const newIngs = [...parsedRecipe.ingredients];
+                            newIngs[idx] = { ...ing, name: e.target.value };
+                            setParsedRecipe({ ...parsedRecipe, ingredients: newIngs });
+                          }}
+                        />
+                        <input
+                          className="col-span-2 rounded-lg border p-1.5 text-sm"
+                          type="number"
+                          placeholder="Määrä"
+                          step="0.1"
+                          value={ing.qty === 0 ? "" : ing.qty}
+                          onChange={(e) => {
+                            const newIngs = [...parsedRecipe.ingredients];
+                            newIngs[idx] = {
+                              ...ing,
+                              qty: Number(e.target.value) || 0,
+                            };
+                            setParsedRecipe({ ...parsedRecipe, ingredients: newIngs });
+                          }}
+                        />
+                        <select
+                          className="col-span-3 rounded-lg border p-1.5 text-sm bg-white"
+                          value={ing.unit}
+                          onChange={(e) => {
+                            const newIngs = [...parsedRecipe.ingredients];
+                            newIngs[idx] = { ...ing, unit: e.target.value };
+                            setParsedRecipe({ ...parsedRecipe, ingredients: newIngs });
+                          }}
+                        >
+                          <option value="">–</option>
+                          <option value="g">g</option>
+                          <option value="dl">dl</option>
+                          <option value="rkl">rkl</option>
+                          <option value="tl">tl</option>
+                          <option value="kpl">kpl</option>
+                          <option value="pkt">pkt</option>
+                          <option value="prk">prk</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newIngs = parsedRecipe.ingredients.filter(
+                              (_, i) => i !== idx
+                            );
+                            setParsedRecipe({
+                              ...parsedRecipe,
+                              ingredients: newIngs,
+                            });
+                          }}
+                          className="col-span-1 text-sm text-red-500 hover:text-red-700"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium">Ohjeet</label>
+                  <textarea
+                    className="w-full rounded-xl border p-2 mt-1 min-h-[120px] text-sm"
+                    value={parsedRecipe.notes}
+                    onChange={(e) =>
+                      setParsedRecipe({ ...parsedRecipe, notes: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={() => applyParsedRecipe(parsedRecipe)}
+                  className="flex-1 rounded-xl bg-black text-white px-4 py-2 hover:opacity-80 transition"
+                >
+                  Hyväksy & Lisää
+                </button>
+                <button
+                  onClick={() => {
+                    setParsedRecipe(null);
+                    setPastedText("");
+                  }}
+                  className="flex-1 rounded-xl border px-4 py-2 hover:bg-gray-100 transition"
+                >
+                  Takaisin
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <main className="meal-app mx-auto max-w-5xl p-6 space-y-6">
       {extraToast && (
@@ -742,6 +954,13 @@ export default function Home() {
 
           <button onClick={addRecipe} className="w-full rounded-xl bg-black text-white px-4 py-2">
             Lisää resepti
+          </button>
+
+          <button
+            onClick={() => setPasteMode(true)}
+            className="w-full rounded-xl border px-4 py-2 hover:bg-gray-100 transition"
+          >
+            📋 Tai liitä resepti
           </button>
 
           {formError && <p className="text-red-600 text-sm">{formError}</p>}
