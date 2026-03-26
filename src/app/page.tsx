@@ -414,7 +414,14 @@ export default function Home() {
     if (!recipe) return;
     setRecipeName(recipe.name);
     setNotes(recipe.notes);
-    setDraftIngredients(recipe.ingredients);
+    setDraftIngredients([
+      ...recipe.ingredients.map((i) => ({
+        name: i.name,
+        qty: i.qty,
+        unit: i.unit,
+      })),
+      { name: "", qty: 0, unit: "" },
+    ]);
     setPasteMode(false);
     setPastedText("");
     setParsedRecipe(null);
@@ -1407,12 +1414,17 @@ export default function Home() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {state.recipes.map((r) => (
-              <div key={r.id} className="rounded-2xl border p-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="font-semibold">{r.name}</div>
+              <div
+                key={r.id}
+                className={`rounded-2xl border p-3 space-y-2 overflow-hidden ${
+                  editingRecipeId === r.id ? "border-black bg-gray-50" : ""
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="font-semibold min-w-0 break-words">{r.name}</div>
 
                   {confirmRecipeDeleteId === r.id ? (
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap justify-end gap-2 shrink-0">
                       <button
                         onClick={() => {
                           removeRecipe(r.id);
@@ -1430,7 +1442,7 @@ export default function Home() {
                       </button>
                     </div>
                   ) : (
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap justify-end gap-2 shrink-0">
                       <button
                         onClick={() => startEditRecipe(r.id)}
                         className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-100 transition"
@@ -1453,8 +1465,8 @@ export default function Home() {
 
                 <ul className="text-sm space-y-1">
                   {r.ingredients.map((i, idx) => (
-                    <li key={idx} className="flex justify-between gap-4">
-                      <span className="truncate">{i.name}</span>
+                    <li key={idx} className="flex justify-between gap-4 min-w-0">      
+                      <span className="min-w-0 break-words">{i.name}</span>
                       <span className="shrink-0 opacity-80">
                         {i.qty} {i.unit}
                       </span>
