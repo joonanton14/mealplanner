@@ -130,9 +130,8 @@ function SortableShopItem({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 20 : undefined }}
-      className={`flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-100 cursor-grab active:cursor-grabbing touch-none ${
-        isDragging ? "shadow-2xl rounded-2xl" : ""
-      }`}
+      className={`flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-100 cursor-grab active:cursor-grabbing touch-none ${isDragging ? "shadow-2xl rounded-2xl" : ""
+        }`}
       {...attributes}
       {...listeners}
     >
@@ -142,9 +141,8 @@ function SortableShopItem({
           e.stopPropagation();
           onToggle();
         }}
-        className={`shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center cursor-pointer transition ${
-          checked ? "border-green-500 bg-green-500 text-white" : "border-gray-300"
-        }`}
+        className={`shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center cursor-pointer transition ${checked ? "border-green-500 bg-green-500 text-white" : "border-gray-300"
+          }`}
       >
         {checked && (
           <svg viewBox="0 0 12 10" fill="none" className="w-3.5 h-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -244,8 +242,8 @@ export default function Home() {
   const [recipeName, setRecipeName] = useState("");
   const [notes, setNotes] = useState("");
   const [draftIngredients, setDraftIngredients] = useState<Ingredient[]>([
-  { name: "", qty: 0, unit: "" },
-    ]);
+    { name: "", qty: 0, unit: "" },
+  ]);
 
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -332,9 +330,9 @@ export default function Home() {
   }, [extraItems]);
 
   useEffect(() => {
-  if (confirmShoppingDeleteKey === null) return;
-  const t = window.setTimeout(() => setConfirmShoppingDeleteKey(null), 3000);
-  return () => window.clearTimeout(t);
+    if (confirmShoppingDeleteKey === null) return;
+    const t = window.setTimeout(() => setConfirmShoppingDeleteKey(null), 3000);
+    return () => window.clearTimeout(t);
   }, [confirmShoppingDeleteKey]);
 
   // Pantry list: currently same as extra list storage (kept for compatibility)
@@ -378,7 +376,7 @@ export default function Home() {
   }
 
   function shoppingKey(name: string, unit: string) {
-  return `${normalizeName(name)}|||${unit}`;
+    return `${normalizeName(name)}|||${unit}`;
   }
 
   // Extra items (row editor)
@@ -420,13 +418,13 @@ export default function Home() {
 
     const name = recipeName.trim();
     if (!name) {
-      setFormError("Add a recipe name.");
+      setFormError("Lisää reseptin nimi.");
       return;
     }
 
     const duplicate = state.recipes.some((r) => normalizeName(r.name) === normalizeName(name));
     if (duplicate) {
-      setFormError("Recipe with this name already exists.");
+      setFormError("Resepti tällä nimellä on jo olemassa.");
       return;
     }
 
@@ -439,7 +437,7 @@ export default function Home() {
       .filter((i) => i.name);
 
     if (ingredients.length === 0) {
-      setFormError("Add at least one ingredient name.");
+      setFormError("Lisää vähintään yksi ainesosa.");
       return;
     }
 
@@ -466,7 +464,7 @@ export default function Home() {
       recipes: state.recipes.filter((r) => r.id !== id),
       picked: state.picked.filter((p) => p.recipeId !== id),
     });
-  
+
   }
 
   function randomPick(n: number) {
@@ -491,7 +489,7 @@ export default function Home() {
 
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      setAuthError(data?.error ?? "Login failed");
+      setAuthError(data?.error ?? "Kirjautuminen epäonnistui");
       return;
     }
 
@@ -528,7 +526,7 @@ export default function Home() {
     return (
       <main className="meal-app mx-auto max-w-xl p-6">
         <h1 className="text-2xl font-bold">MealPlanner</h1>
-        <p className="opacity-70 mt-2">Loading…</p>
+        <p className="opacity-70 mt-2">Ladataan…</p>
       </main>
     );
   }
@@ -594,8 +592,8 @@ export default function Home() {
                 const amount = it.unit
                   ? `${Math.round(it.qty * 100) / 100} ${it.unit}`
                   : it.qty > 1
-                  ? `×${it.qty}`
-                  : "";
+                    ? `×${it.qty}`
+                    : "";
                 return (
                   <SortableShopItem
                     key={key}
@@ -617,20 +615,20 @@ export default function Home() {
   return (
     <main className="meal-app mx-auto max-w-5xl p-6 space-y-6">
       {extraToast && (
-      <div
-        className="fixed right-4 z-50"
-        style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
-      >
-      <div
-        className={[
-        "min-w-[240px] rounded-2xl px-5 py-3 shadow-lg text-base font-bold text-white",
-        extraToastType === "add" ? "bg-green-600" : "bg-red-600",
-        ].join(" ")}
-      >
-      {extraToast}
-    </div>
-  </div>
-  )}
+        <div
+          className="fixed right-4 z-50"
+          style={{ bottom: "calc(1rem + env(safe-area-inset-bottom))" }}
+        >
+          <div
+            className={[
+              "min-w-[240px] rounded-2xl px-5 py-3 shadow-lg text-base font-bold text-white",
+              extraToastType === "add" ? "bg-green-600" : "bg-red-600",
+            ].join(" ")}
+          >
+            {extraToast}
+          </div>
+        </div>
+      )}
 
 
 
@@ -639,7 +637,7 @@ export default function Home() {
           <h1 className="text-3xl font-bold">MealPlanner</h1>
         </div>
         <button onClick={logout} className="rounded-xl border px-3 py-2 hover:bg-black hover:text-white transition">
-          Logout
+          Kirjaudu ulos
         </button>
       </header>
 
@@ -667,55 +665,55 @@ export default function Home() {
             <div className="space-y-2">
               {draftIngredients.map((ing, idx) => (
                 <div key={idx} className="grid grid-cols-12 gap-2 items-center">
-<input
-  ref={(el) => {
-    ingredientNameRefs.current[idx] = el;
-  }}
-  className="col-span-6 rounded-xl border p-2"
-  placeholder="Ainesosan nimi"
-  value={ing.name}
-  onChange={(e) => updateIngredientRow(idx, { name: e.target.value })}
-  onKeyDown={(e) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    if (!ing.name.trim()) return;
+                  <input
+                    ref={(el) => {
+                      ingredientNameRefs.current[idx] = el;
+                    }}
+                    className="col-span-6 rounded-xl border p-2"
+                    placeholder="Ainesosan nimi"
+                    value={ing.name}
+                    onChange={(e) => updateIngredientRow(idx, { name: e.target.value })}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      e.preventDefault();
+                      if (!ing.name.trim()) return;
 
-    addIngredientRow();
-    requestAnimationFrame(() => ingredientNameRefs.current[idx + 1]?.focus());
-  }}
-/>
+                      addIngredientRow();
+                      requestAnimationFrame(() => ingredientNameRefs.current[idx + 1]?.focus());
+                    }}
+                  />
 
 
-<input
-  className="col-span-3 rounded-xl border p-2"
-  type="number"
-  min={0}
-  step="0.1"
-  placeholder="määrä"
-  value={ing.qty === 0 ? "" : String(ing.qty)}
-  onChange={(e) => updateIngredientRow(idx, { qty: Number(e.target.value) })}
-  onKeyDown={(e) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    if (!ing.name.trim()) return;
+                  <input
+                    className="col-span-3 rounded-xl border p-2"
+                    type="number"
+                    min={0}
+                    step="0.1"
+                    placeholder="määrä"
+                    value={ing.qty === 0 ? "" : String(ing.qty)}
+                    onChange={(e) => updateIngredientRow(idx, { qty: Number(e.target.value) })}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter") return;
+                      e.preventDefault();
+                      if (!ing.name.trim()) return;
 
-    addIngredientRow();
-    requestAnimationFrame(() => ingredientNameRefs.current[idx + 1]?.focus());
-  }}
-/>
+                      addIngredientRow();
+                      requestAnimationFrame(() => ingredientNameRefs.current[idx + 1]?.focus());
+                    }}
+                  />
 
-<select
-  className="unit-select col-span-2 rounded-xl border p-2 bg-white"
-  value={ing.unit}
-  onChange={(e) => updateIngredientRow(idx, { unit: e.target.value })}
->
-  <option value="">-</option>
-  <option value="g">G</option>
-  <option value="dl">Dl</option>
-  <option value="rkl">Rkl</option>
-  <option value="tl">Tl</option>
-  <option value="kpl">Kpl</option>
-</select>
+                  <select
+                    className="unit-select col-span-2 rounded-xl border p-2 bg-white"
+                    value={ing.unit}
+                    onChange={(e) => updateIngredientRow(idx, { unit: e.target.value })}
+                  >
+                    <option value="">-</option>
+                    <option value="g">G</option>
+                    <option value="dl">Dl</option>
+                    <option value="rkl">Rkl</option>
+                    <option value="tl">Tl</option>
+                    <option value="kpl">Kpl</option>
+                  </select>
 
 
                   <button
@@ -893,7 +891,7 @@ export default function Home() {
                       className="rounded-xl bg-black text-white px-3 py-1.5 text-sm font-medium hover:opacity-80 transition"
                       type="button"
                     >
-                      🛒 Kauppamoodi
+                      🛒
                     </button>
                   )}
                 </div>
@@ -913,34 +911,34 @@ export default function Home() {
                       </div>
 
                       {confirmShoppingDeleteKey === shoppingKey(it.name, it.unit) ? (
-  <div className="flex gap-2">
-    <button
-      type="button"
-      onClick={() => {
-        hideShoppingItem(it.name, it.unit);     // this is the real delete
-        setConfirmShoppingDeleteKey(null);
-      }}
-      className="rounded-lg bg-red-600 text-white px-2 py-1 text-xs hover:bg-red-700 transition"
-    >
-      Vahvista
-    </button>
-    <button
-      type="button"
-      onClick={() => setConfirmShoppingDeleteKey(null)}
-      className="rounded-lg border px-2 py-1 text-xs opacity-80 hover:opacity-100 transition"
-    >
-      Peruuta
-    </button>
-  </div>
-) : (
-  <button
-    type="button"
-    onClick={() => setConfirmShoppingDeleteKey(shoppingKey(it.name, it.unit))}
-    className="rounded-lg border px-2 py-1 text-sm opacity-80 hover:bg-black hover:text-white transition"
-  >
-    Poista
-  </button>
-)}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              hideShoppingItem(it.name, it.unit);
+                              setConfirmShoppingDeleteKey(null);
+                            }}
+                            className="rounded-lg bg-red-600 text-white px-2 py-1 text-xs hover:bg-red-700 transition"
+                          >
+                            Vahvista
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setConfirmShoppingDeleteKey(null)}
+                            className="rounded-lg border px-2 py-1 text-xs opacity-80 hover:opacity-100 transition"
+                          >
+                            Peruuta
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setConfirmShoppingDeleteKey(shoppingKey(it.name, it.unit))}
+                          className="rounded-lg border px-2 py-1 text-sm opacity-80 hover:bg-black hover:text-white transition"
+                        >
+                          Poista
+                        </button>
+                      )}
 
                     </li>
                   ))}
