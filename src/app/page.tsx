@@ -263,16 +263,22 @@ export default function Home() {
     const name = lines[0];
     const ingredients: Ingredient[] = [];
     const notesLines: string[] = [];
-    const unitPatterns = /^([0-9.,]+)\s*(g|dl|rkl|tl|kpl|pkt|prk)\s+(.+)$/i;
+    const unitPattern = /^([0-9.,]+)\s*(g|dl|rkl|tl|kpl|pkt|prk)\s+(.+)$/i;
+    const qtyOnlyPattern = /^([0-9.,]+)\s+(.+)$/i;
     let parsingIngredients = true;
 
     for (const line of lines.slice(1)) {
-      const match = unitPatterns.exec(line);
+      const match = unitPattern.exec(line);
       if (match && parsingIngredients) {
         const qty = parseFloat(match[1].replace(",", "."));
         const unit = match[2].toLowerCase();
         const ingName = match[3];
         ingredients.push({ name: ingName, qty: isNaN(qty) ? 1 : qty, unit });
+      } else if (parsingIngredients && qtyOnlyPattern.test(line)) {
+        const qtyMatch = qtyOnlyPattern.exec(line)!;
+        const qty = parseFloat(qtyMatch[1].replace(",", "."));
+        const ingName = qtyMatch[2];
+        ingredients.push({ name: ingName, qty: isNaN(qty) ? 1 : qty, unit: "" });
       } else if (line.match(/^[-•*]/)) {
         const ingName = line.replace(/^[-•*\s]+/, "");
         ingredients.push({ name: ingName, qty: 1, unit: "kpl" });
