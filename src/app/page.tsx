@@ -1,6 +1,22 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 type Ingredient = { name: string; qty: number; unit: string };
 type Recipe = { id: string; name: string; ingredients: Ingredient[]; notes?: string };
@@ -96,17 +112,115 @@ async function saveState(state: AppState) {
   if (!res.ok) throw new Error("Failed to save");
 }
 
+function SortableShopItem({
+  id,
+  name,
+  amount,
+  checked,
+  onToggle,
+}: {
+  id: string;
+  name: string;
+  amount: string;
+  checked: boolean;
+  onToggle: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition, zIndex: isDragging ? 20 : undefined }}
+      className={`flex items-center gap-3 px-4 py-4 bg-white border-b border-gray-100 ${
+        isDragging ? "shadow-2xl rounded-2xl" : ""
+      }`}
+    >
+      {/* Check circle */}
+      <div
+        onClick={onToggle}
+        className={`shrink-0 w-7 h-7 rounded-full border-2 flex items-center justify-center cursor-pointer transition ${
+          checked ? "border-green-500 bg-green-500 text-white" : "border-gray-300"
+        }`}
+      >
+        {checked && (
+          <svg viewBox="0 0 12 10" fill="none" className="w-3.5 h-3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="1,5 4.5,9 11,1" />
+          </svg>
+        )}
+      </div>
+
+      {/* Name */}
+      <div
+        className={`flex-1 min-w-0 cursor-pointer ${checked ? "opacity-40" : ""}`}
+        onClick={onToggle}
+      >
+        <span className={`text-lg font-medium ${checked ? "line-through" : ""}`}>{name}</span>
+      </div>
+
+      {/* Amount */}
+      {amount && (
+        <span className={`shrink-0 text-base text-gray-500 ${checked ? "opacity-40" : ""}`}>{amount}</span>
+      )}
+
+      {/* Drag handle */}
+      <div
+        {...attributes}
+        {...listeners}
+        className="shrink-0 w-10 h-10 flex items-center justify-center text-gray-300 cursor-grab active:cursor-grabbing touch-none"
+        aria-label="Siirrä"
+      >
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+          <circle cx="7" cy="5" r="1.5" />
+          <circle cx="13" cy="5" r="1.5" />
+          <circle cx="7" cy="10" r="1.5" />
+          <circle cx="13" cy="10" r="1.5" />
+          <circle cx="7" cy="15" r="1.5" />
+          <circle cx="13" cy="15" r="1.5" />
+        </svg>
+      </div>
+    </li>
+  );
+}
+
 export default function Home() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [state, setState] = useState<AppState | null>(null);
   const ingredientNameRefs = useRef<Array<HTMLInputElement | null>>([]);
-  const [confirmAddIngredient, setConfirmAddIngredient] = useState(false);
 
-  useEffect(() => {
-  if (!confirmAddIngredient) return;
-  const t = window.setTimeout(() => setConfirmAddIngredient(false), 2500);
-  return () => window.clearTimeout(t);
-  }, [confirmAddIngredient]);
+  // Shopping mode overlay
+  const [shopMode, setShopMode] = useState(false);
+  const [checkedKeys, setCheckedKeys] = useState<Set<string>>(new Set());
+  const [shopOrder, setShopOrder] = useState<string[]>([]);
+
+  function openShopMode() {
+    setCheckedKeys(new Set());
+    setShopOrder(visibleShoppingList.map((it) => `${normalizeName(it.name)}|||${it.unit}`));
+    setShopMode(true);
+  }
+
+  function toggleChecked(key: string) {
+    setCheckedKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
+  );
+
+  function handleShopDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setShopOrder((prev) => {
+        const oldIndex = prev.indexOf(active.id as string);
+        const newIndex = prev.indexOf(over.id as string);
+        return arrayMove(prev, oldIndex, newIndex);
+      });
+    }
+  }
 
 
   // Ostoslista (muut ostettavat): edited as rows, stored into state.pantryText as lines
@@ -315,22 +429,28 @@ export default function Home() {
 
     const name = recipeName.trim();
     if (!name) {
-      setFormError("Add at least one ingredient name.");
+      setFormError("Add a recipe name.");
       return;
     }
 
-const ingredients = draftIngredients
-  .map((i) => ({
-    name: i.name.trim(),
-    qty: Number.isFinite(i.qty) && i.qty > 0 ? i.qty : 1,
-    unit: i.unit.trim(),
-  }))
-  .filter((i) => i.name);
+    const duplicate = state.recipes.some((r) => normalizeName(r.name) === normalizeName(name));
+    if (duplicate) {
+      setFormError("Recipe with this name already exists.");
+      return;
+    }
 
-if (ingredients.length === 0) {
-  setFormError("Add at least one ingredient name.");
-  return;
-}
+    const ingredients = draftIngredients
+      .map((i) => ({
+        name: i.name.trim(),
+        qty: Number.isFinite(i.qty) && i.qty > 0 ? Number(i.qty) : 1,
+        unit: i.unit.trim(),
+      }))
+      .filter((i) => i.name);
+
+    if (ingredients.length === 0) {
+      setFormError("Add at least one ingredient name.");
+      return;
+    }
 
     const r: Recipe = {
       id: uid(),
@@ -346,13 +466,6 @@ if (ingredients.length === 0) {
     setDraftIngredients([{ name: "", qty: 0, unit: "" }]);
     showExtraToast("Lisätty ✓", "add");
 
-  }
-
-  function addIngredientRowAndFocus(nextIndex: number) {
-  addIngredientRow();
-  requestAnimationFrame(() => {
-    ingredientNameRefs.current[nextIndex]?.focus();
-  });
   }
 
   function removeRecipe(id: string) {
@@ -455,6 +568,61 @@ if (ingredients.length === 0) {
 
   if (!state) return null;
 
+  // ---- Shopping mode overlay ----
+  if (shopMode) {
+    const itemMap = new Map(
+      visibleShoppingList.map((it) => [`${normalizeName(it.name)}|||${it.unit}`, it])
+    );
+    const orderedItems = shopOrder
+      .map((k) => ({ key: k, item: itemMap.get(k) }))
+      .filter((x): x is { key: string; item: NonNullable<typeof x.item> } => !!x.item);
+    const doneCount = orderedItems.filter(({ key }) => checkedKeys.has(key)).length;
+
+    return (
+      <div className="shop-overlay fixed inset-0 z-50 flex flex-col bg-white overflow-hidden">
+        <header className="flex items-center justify-between gap-4 px-5 py-4 border-b border-gray-200 shrink-0">
+          <div>
+            <div className="text-xl font-bold tracking-tight">Kauppalista</div>
+            <div className="text-sm text-gray-400">{doneCount}/{orderedItems.length} kerätty</div>
+          </div>
+          <button
+            onClick={() => setShopMode(false)}
+            className="rounded-xl border px-4 py-2 text-sm font-medium hover:bg-gray-100 transition"
+          >
+            ✕ Sulje
+          </button>
+        </header>
+
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleShopDragEnd}>
+          <SortableContext items={shopOrder} strategy={verticalListSortingStrategy}>
+            <ul className="flex-1 overflow-y-auto">
+              {orderedItems.length === 0 && (
+                <li className="px-6 py-10 text-center text-gray-400">Ei tuotteita</li>
+              )}
+              {orderedItems.map(({ key, item: it }) => {
+                const amount = it.unit
+                  ? `${Math.round(it.qty * 100) / 100} ${it.unit}`
+                  : it.qty > 1
+                  ? `×${it.qty}`
+                  : "";
+                return (
+                  <SortableShopItem
+                    key={key}
+                    id={key}
+                    name={it.name}
+                    amount={amount}
+                    checked={checkedKeys.has(key)}
+                    onToggle={() => toggleChecked(key)}
+                  />
+                );
+              })}
+            </ul>
+          </SortableContext>
+        </DndContext>
+      </div>
+    );
+  }
+
   return (
     <main className="meal-app mx-auto max-w-5xl p-6 space-y-6">
       {extraToast && (
@@ -501,39 +669,8 @@ if (ingredients.length === 0) {
           </div>
 
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div>
               <label className="text-sm font-medium">Ainesosat</label>
-{confirmAddIngredient ? (
-  <div className="flex gap-2">
-    <button
-      type="button"
-      onClick={() => {
-        addIngredientRow();
-        setConfirmAddIngredient(false);
-        showExtraToast("Lisätty ✓", "add");
-      }}
-      className="rounded-lg bg-green-600 text-white px-2 py-1 text-xs hover:bg-green-700 transition"
-    >
-      Vahvista
-    </button>
-    <button
-      type="button"
-      onClick={() => setConfirmAddIngredient(false)}
-      className="rounded-lg border px-2 py-1 text-xs opacity-80 hover:opacity-100 transition"
-    >
-      Peruuta
-    </button>
-  </div>
-) : (
-  <button
-    type="button"
-    onClick={() => setConfirmAddIngredient(true)}
-    className="rounded-lg border px-2 py-1 text-sm hover:bg-black hover:text-white transition"
-  >
-    + lisää ainesosa
-  </button>
-)}
-
             </div>
 
             <div className="space-y-2">
@@ -576,20 +713,18 @@ if (ingredients.length === 0) {
   }}
 />
 
-<input
-  className="col-span-2 rounded-xl border p-2"
-  placeholder="yksikkö"
+<select
+  className="unit-select col-span-2 rounded-xl border p-2 bg-white"
   value={ing.unit}
   onChange={(e) => updateIngredientRow(idx, { unit: e.target.value })}
-  onKeyDown={(e) => {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    if (!ing.name.trim()) return;
-
-    addIngredientRow();
-    requestAnimationFrame(() => ingredientNameRefs.current[idx + 1]?.focus());
-  }}
-/>
+>
+  <option value="">-</option>
+  <option value="g">G</option>
+  <option value="dl">Dl</option>
+  <option value="rkl">Rkl</option>
+  <option value="tl">Tl</option>
+  <option value="kpl">Kpl</option>
+</select>
 
 
                   <button
@@ -753,13 +888,24 @@ if (ingredients.length === 0) {
             <div className="rounded-2xl border p-3 space-y-2">
               <div className="flex items-center justify-between">
                 <h3 className="font-semibold">Kauppalista</h3>
-                <button
-                  onClick={restoreShoppingList}
-                  className="text-sm underline opacity-70 hover:opacity-100"
-                  type="button"
-                >
-                  Palauta kaikki
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={restoreShoppingList}
+                    className="text-sm underline opacity-70 hover:opacity-100"
+                    type="button"
+                  >
+                    Palauta kaikki
+                  </button>
+                  {visibleShoppingList.length > 0 && (
+                    <button
+                      onClick={openShopMode}
+                      className="rounded-xl bg-black text-white px-3 py-1.5 text-sm font-medium hover:opacity-80 transition"
+                      type="button"
+                    >
+                      🛒 Kauppamoodi
+                    </button>
+                  )}
+                </div>
               </div>
 
               {visibleShoppingList.length === 0 ? (

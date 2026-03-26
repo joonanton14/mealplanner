@@ -61,10 +61,19 @@ body::before {
 }
 
 .meal-app input:focus,
-.meal-app textarea:focus {
+.meal-app textarea:focus,
+.meal-app select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 22%, transparent);
+}
+
+.meal-app select {
+  border-color: var(--border);
+  background: var(--surface-strong);
+  cursor: pointer;
+  transition: border-color 160ms ease, box-shadow 160ms ease;
+  appearance: auto;
 }
 
 .meal-app button {
@@ -109,6 +118,11 @@ body::before {
 
 .meal-app > *:nth-child(4) {
   animation-delay: 120ms;
+}
+
+.shop-overlay {
+  background: #ffffff;
+  -webkit-overflow-scrolling: touch;
 }
 
 @keyframes mealFadeUp {
