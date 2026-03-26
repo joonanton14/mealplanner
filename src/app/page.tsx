@@ -173,6 +173,8 @@ function SortableShopItem({
 export default function Home() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [state, setState] = useState<AppState | null>(null);
+  const recipeNameInputRef = useRef<HTMLInputElement | null>(null);
+  const recipeFormRef = useRef<HTMLDivElement | null>(null);
   const ingredientNameRefs = useRef<Array<HTMLInputElement | null>>([]);
 
   // Shopping mode overlay
@@ -247,6 +249,7 @@ export default function Home() {
 
   const [formError, setFormError] = useState<string | null>(null);
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
+  const [recipeSearch, setRecipeSearch] = useState("");
 
   // Paste-and-parse modal
   const [pasteMode, setPasteMode] = useState(false);
@@ -540,6 +543,18 @@ export default function Home() {
     return shoppingList.filter((it) => !hiddenSet.has(`${normalizeName(it.name)}|||${it.unit}`));
   }, [shoppingList, hiddenSet]);
 
+  const filteredRecipes = useMemo(() => {
+    if (!state) return [];
+    const q = recipeSearch.trim().toLowerCase();
+    if (!q) return state.recipes;
+
+    return state.recipes.filter((r) => {
+      if (r.name.toLowerCase().includes(q)) return true;
+      if ((r.notes ?? "").toLowerCase().includes(q)) return true;
+      return r.ingredients.some((i) => i.name.toLowerCase().includes(q));
+    });
+  }, [state, recipeSearch]);
+
   function restoreShoppingList() {
     if (!state) return;
     setState({ ...state, hiddenShoppingKeys: [] });
@@ -667,6 +682,12 @@ export default function Home() {
       { name: "", qty: 0, unit: "" },
     ]);
     setFormError(null);
+
+    requestAnimationFrame(() => {
+      recipeFormRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      recipeNameInputRef.current?.focus();
+      recipeNameInputRef.current?.select();
+    });
   }
 
   function cancelEditRecipe() {
@@ -808,7 +829,7 @@ export default function Home() {
         <h1 className="text-3xl font-bold">MealPlanner</h1>
         <p className="opacity-80">Syötä salasana</p>
 
-        <div className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
+        <div ref={recipeFormRef} className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
           <label className="text-sm font-medium">Salasana</label>
           <input
             className="w-full rounded-xl border p-2"
@@ -1083,6 +1104,7 @@ export default function Home() {
           <div className="space-y-1">
             <label className="text-sm font-medium">Reseptin nimi</label>
             <input
+              ref={recipeNameInputRef}
               className="w-full rounded-xl border p-2"
               value={recipeName}
               onChange={(e) => setRecipeName(e.target.value)}
@@ -1407,13 +1429,23 @@ export default function Home() {
 
       {/* RECIPES LIST */}
       <section className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
-        <h2 className="text-xl font-semibold">Reseptit ({state.recipes.length})</h2>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-xl font-semibold">Reseptit ({filteredRecipes.length}/{state.recipes.length})</h2>
+          <input
+            className="w-full sm:w-72 rounded-xl border p-2"
+            value={recipeSearch}
+            onChange={(e) => setRecipeSearch(e.target.value)}
+            placeholder="Hae reseptejä..."
+          />
+        </div>
 
         {state.recipes.length === 0 ? (
           <p className="opacity-70">Lisää ensimmäinen resepti yllä.</p>
+        ) : filteredRecipes.length === 0 ? (
+          <p className="opacity-70">Ei hakua vastaavia reseptejä.</p>
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
-            {state.recipes.map((r) => (
+            {filteredRecipes.map((r) => (
               <div
                 key={r.id}
                 className={`rounded-2xl border p-3 space-y-2 overflow-hidden ${
