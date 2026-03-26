@@ -20,7 +20,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 type Ingredient = { name: string; qty: number; unit: string };
 type Recipe = { id: string; name: string; ingredients: Ingredient[]; notes?: string };
-type PickedMeal = { recipeId: string; name: string };
+type PickedMeal = { recipeId: string; name: string; isDouble: boolean };
 
 type AppState = {
   recipes: Recipe[];
@@ -53,6 +53,7 @@ function groupShoppingList(recipes: Recipe[], picked: PickedMeal[], pantry: stri
   for (const pm of picked) {
     const r = recipes.find((x) => x.id === pm.recipeId);
     if (!r) continue;
+    const multiplier = pm.isDouble ? 2 : 1;
 
     for (const ing of r.ingredients) {
       const nameNorm = normalizeName(ing.name);
@@ -63,8 +64,8 @@ function groupShoppingList(recipes: Recipe[], picked: PickedMeal[], pantry: stri
       const key = `${nameNorm}|||${unitNorm}`;
 
       const existing = map.get(key);
-      if (existing) existing.qty += ing.qty;
-      else map.set(key, { name: ing.name.trim(), unit: unitNorm, qty: ing.qty });
+      if (existing) existing.qty += ing.qty * multiplier;
+      else map.set(key, { name: ing.name.trim(), unit: unitNorm, qty: ing.qty * multiplier });
     }
   }
 
@@ -93,6 +94,16 @@ function mergeExtrasIntoShoppingList(
   }
 
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function migratePickedMeals(picked: Array<PickedMeal | { recipeId: string; name: string } | null | undefined>) {
+  return (picked ?? [])
+    .filter((meal): meal is PickedMeal | { recipeId: string; name: string } => !!meal)
+    .map((meal) => ({
+      recipeId: meal.recipeId,
+      name: meal.name,
+      isDouble: "isDouble" in meal ? meal.isDouble === true : false,
+    }));
 }
 
 async function loadState(): Promise<AppState> {
@@ -444,6 +455,7 @@ export default function Home() {
         const migrated: AppState = {
           ...s,
           hiddenShoppingKeys: s.hiddenShoppingKeys ?? [],
+          picked: migratePickedMeals(s.picked),
         };
 
         setState(migrated);
@@ -456,9 +468,9 @@ export default function Home() {
           .filter(Boolean);
         setExtraItems([...parsed, ""]);
         extrasReady.current = true;
-      } catch (e: any) {
+      } catch (e: unknown) {
         extrasReady.current = false;
-        if (e?.message === "UNAUTH") setAuthed(false);
+        if (e instanceof Error && e.message === "UNAUTH") setAuthed(false);
         else {
           setAuthed(false);
           setAuthError("Could not load data.");
@@ -759,13 +771,24 @@ export default function Home() {
 
   }
 
+  function toggleMealDoubleSize(recipeId: string) {
+    if (!state) return;
+
+    setState({
+      ...state,
+      picked: state.picked.map((meal) =>
+        meal.recipeId === recipeId ? { ...meal, isDouble: !meal.isDouble } : meal
+      ),
+    });
+  }
+
   function randomPick(n: number) {
     if (!state) return;
     if (state.recipes.length === 0) return;
     const count = Math.max(1, Math.min(n, state.recipes.length));
     const chosen = shuffle(state.recipes)
       .slice(0, count)
-      .map((r) => ({ recipeId: r.id, name: r.name }));
+      .map((r) => ({ recipeId: r.id, name: r.name, isDouble: false }));
     setState({ ...state, picked: chosen, hiddenShoppingKeys: [] }); // reset hidden when re-picking
     showExtraToast(`Valittu ${count} ✓`);
   }
@@ -786,7 +809,11 @@ export default function Home() {
     }
 
     const s = await loadState();
-    const migrated: AppState = { ...s, hiddenShoppingKeys: s.hiddenShoppingKeys ?? [] };
+    const migrated: AppState = {
+      ...s,
+      hiddenShoppingKeys: s.hiddenShoppingKeys ?? [],
+      picked: migratePickedMeals(s.picked),
+    };
 
     setState(migrated);
     setAuthed(true);
@@ -1337,16 +1364,29 @@ export default function Home() {
               <h3 className="font-semibold mb-2">Valitut ruoat</h3>
               <ul className="space-y-2">
                 {state.picked.map((m) => (
-                  <li key={m.recipeId} className="flex items-center justify-between gap-2">
-                    <span>{m.name}</span>
-                    <button
-                      className="text-sm underline opacity-70 hover:opacity-100"
-                      onClick={() =>
-                        setState({ ...state, picked: state.picked.filter((p) => p.recipeId !== m.recipeId) })
-                      }
-                    >
-                      Poista
-                    </button>
+                  <li key={m.recipeId} className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <span className="break-words">{m.name}</span>
+                      {m.isDouble && <span className="ml-2 rounded-full bg-black px-2 py-0.5 text-xs font-medium text-white">2x</span>}
+                    </div>
+
+                    <div className="flex shrink-0 items-center gap-2">
+                      <button
+                        type="button"
+                        className={`rounded-lg border px-2 py-1 text-xs transition ${m.isDouble ? "bg-black text-white" : "hover:bg-gray-100"}`}
+                        onClick={() => toggleMealDoubleSize(m.recipeId)}
+                      >
+                        {m.isDouble ? "Normaali" : "Tuplana"}
+                      </button>
+                      <button
+                        className="text-sm underline opacity-70 hover:opacity-100"
+                        onClick={() =>
+                          setState({ ...state, picked: state.picked.filter((p) => p.recipeId !== m.recipeId) })
+                        }
+                      >
+                        Poista
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
