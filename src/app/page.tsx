@@ -938,7 +938,7 @@ export default function Home() {
             </button>
           </header>
 
-          <section className="rounded-3xl bg-white/5 p-5 shadow-2xl ring-1 ring-white/10">
+          <section className="rounded-3xl bg-stone-900 p-5 shadow-2xl ring-1 ring-white/10">
             <div className="mb-4 flex items-center justify-between gap-3">
               <h2 className="text-xl font-semibold">Ainekset</h2>
               <span className="text-sm text-stone-200">
@@ -958,8 +958,8 @@ export default function Home() {
                       onClick={() => toggleCookingIngredient(cookingRecipe.id, index)}
                       className={`flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left transition ${
                         checked
-                          ? "border-emerald-400/60 bg-emerald-900/60 text-white"
-                          : "border-white/10 bg-white/5 text-white hover:bg-white/10"
+                          ? "border-emerald-400/60 bg-emerald-800 text-white"
+                          : "border-stone-700 bg-stone-800 text-white hover:bg-stone-700"
                       }`}
                     >
                       <span
@@ -969,10 +969,10 @@ export default function Home() {
                       >
                         {checked ? "✓" : index + 1}
                       </span>
-                      <span className="min-w-0 flex-1 text-xl leading-snug text-white">
-                        <span className={checked ? "line-through opacity-90" : ""}>{ingredient.name}</span>
+                      <span className="min-w-0 flex-1 text-xl leading-snug text-white opacity-100">
+                        <span className={checked ? "line-through text-white" : "text-white"}>{ingredient.name}</span>
                       </span>
-                      <span className={`shrink-0 text-lg ${checked ? "text-emerald-100" : "text-stone-100"}`}>
+                      <span className={`shrink-0 text-lg font-medium ${checked ? "text-emerald-50" : "text-white"}`}>
                         {ingredient.qty} {ingredient.unit}
                       </span>
                     </button>
