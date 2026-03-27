@@ -48,6 +48,7 @@ function shuffle<T>(arr: T[]) {
 
 function groupShoppingList(recipes: Recipe[], picked: PickedMeal[], pantry: string[]) {
   const pantrySet = new Set(pantry.map(normalizeName).filter(Boolean));
+  const skippedNames = new Set(["vesi", "vettä", "vetta"]);
   const map = new Map<string, { name: string; unit: string; qty: number }>();
 
   for (const pm of picked) {
@@ -58,6 +59,7 @@ function groupShoppingList(recipes: Recipe[], picked: PickedMeal[], pantry: stri
     for (const ing of r.ingredients) {
       const nameNorm = normalizeName(ing.name);
       if (!nameNorm) continue;
+      if (skippedNames.has(nameNorm)) continue;
       if (pantrySet.has(nameNorm)) continue;
 
       const unitNorm = ing.unit.trim();
@@ -1039,7 +1041,7 @@ export default function Home() {
             <button
               type="button"
               onClick={closeCookingMode}
-              className="rounded-xl border border-white/15 px-4 py-2 text-sm font-medium text-white hover:bg-white/10 transition"
+              className="rounded-xl border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-900 hover:bg-stone-100 transition"
             >
               Sulje
             </button>
@@ -1103,9 +1105,41 @@ export default function Home() {
               <p className="text-lg leading-relaxed text-stone-700">Tälle reseptille ei ole tallennettu ohjeita.</p>
             ) : (
               <div className="space-y-6">
-                <div className="rounded-3xl bg-white px-5 py-6 shadow-inner">
+                <div className="h-[260px] overflow-y-auto rounded-3xl bg-white px-5 py-6 shadow-inner sm:h-[300px]">
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-500">Nykyinen vaihe</p>
                   <p className="mt-4 text-3xl font-semibold leading-tight text-stone-950 sm:text-4xl">{activeStep}</p>
+                </div>
+
+                <div className="flex items-center justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCookingStepIndex((prev) => Math.max(prev - 1, 0))
+                    }
+                    disabled={cookingStepIndex <= 0}
+                    title="Edellinen vaihe"
+                    aria-label="Edellinen vaihe"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-stone-300 bg-white text-stone-900 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="12,4 6,10 12,16" />
+                    </svg>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCookingStepIndex((prev) => Math.min(prev + 1, cookingSteps.length - 1))
+                    }
+                    disabled={cookingStepIndex >= cookingSteps.length - 1}
+                    title="Seuraava vaihe"
+                    aria-label="Seuraava vaihe"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-stone-900 text-white transition hover:bg-stone-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="8,4 14,10 8,16" />
+                    </svg>
+                  </button>
                 </div>
 
               </div>
@@ -1175,7 +1209,7 @@ export default function Home() {
   if (pasteMode) {
     return (
       <div className="meal-app fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-4 p-6">
+        <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto overflow-x-hidden space-y-4 p-6">
           <h2 className="text-2xl font-bold">Liitä resepti</h2>
 
           {!parsedRecipe ? (
@@ -1231,9 +1265,9 @@ export default function Home() {
                   <label className="text-sm font-medium">Ainekset ({parsedRecipe.ingredients.length})</label>
                   <div className="space-y-1.5 mt-2">
                     {parsedRecipe.ingredients.map((ing, idx) => (
-                      <div key={idx} className="grid grid-cols-12 gap-2 items-start">
+                      <div key={idx} className="grid grid-cols-12 gap-2 items-start min-w-0">
                         <input
-                          className="col-span-6 rounded-lg border p-1.5 text-sm"
+                          className="col-span-6 min-w-0 rounded-lg border p-1.5 text-sm"
                           placeholder="Ainesosan nimi"
                           value={ing.name}
                           onChange={(e) => {
@@ -1243,7 +1277,7 @@ export default function Home() {
                           }}
                         />
                         <input
-                          className="col-span-2 rounded-lg border p-1.5 text-sm"
+                          className="col-span-2 min-w-0 rounded-lg border p-1.5 text-sm"
                           type="number"
                           placeholder="Määrä"
                           step="0.1"
@@ -1258,7 +1292,7 @@ export default function Home() {
                           }}
                         />
                         <select
-                          className="col-span-3 rounded-lg border p-1.5 text-sm bg-white"
+                          className="col-span-3 min-w-0 rounded-lg border p-1.5 text-sm bg-white"
                           value={ing.unit}
                           onChange={(e) => {
                             const newIngs = [...parsedRecipe.ingredients];
