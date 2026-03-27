@@ -558,6 +558,11 @@ export default function Home() {
     return shoppingList.filter((it) => !hiddenSet.has(`${normalizeName(it.name)}|||${it.unit}`));
   }, [shoppingList, hiddenSet]);
 
+  const pickedRecipeIds = useMemo(
+    () => new Set((state?.picked ?? []).map((meal) => meal.recipeId)),
+    [state?.picked]
+  );
+
   const filteredRecipes = useMemo(() => {
     if (!state) return [];
     const q = recipeSearch.trim().toLowerCase();
@@ -621,6 +626,24 @@ export default function Home() {
 
   function shoppingKey(name: string, unit: string) {
     return `${normalizeName(name)}|||${unit}`;
+  }
+
+  function toggleRecipePicked(recipe: Recipe) {
+    if (!state) return;
+
+    const exists = state.picked.some((meal) => meal.recipeId === recipe.id);
+    if (exists) {
+      setState({
+        ...state,
+        picked: state.picked.filter((meal) => meal.recipeId !== recipe.id),
+      });
+      return;
+    }
+
+    setState({
+      ...state,
+      picked: [...state.picked, { recipeId: recipe.id, name: recipe.name, isDouble: false }],
+    });
   }
 
   // Extra items (row editor)
@@ -938,10 +961,10 @@ export default function Home() {
             </button>
           </header>
 
-          <section className="rounded-3xl bg-stone-900 p-5 shadow-2xl ring-1 ring-white/10">
+          <section className="rounded-3xl bg-black p-5 shadow-2xl ring-1 ring-white/20">
             <div className="mb-4 flex items-center justify-between gap-3">
-              <h2 className="text-xl font-semibold">Ainekset</h2>
-              <span className="text-sm text-stone-200">
+              <h2 className="text-xl font-semibold text-white">Ainekset</h2>
+              <span className="text-sm text-white">
                 {cookingRecipe.ingredients.filter((_, index) => checkedCookingIngredients[`${cookingRecipe.id}:${index}`]).length}/{cookingRecipe.ingredients.length}
               </span>
             </div>
@@ -958,21 +981,21 @@ export default function Home() {
                       onClick={() => toggleCookingIngredient(cookingRecipe.id, index)}
                       className={`flex w-full items-center gap-4 rounded-2xl border px-4 py-4 text-left transition ${
                         checked
-                          ? "border-emerald-400/60 bg-emerald-800 text-white"
-                          : "border-stone-700 bg-stone-800 text-white hover:bg-stone-700"
+                          ? "border-emerald-300 bg-emerald-200 text-black"
+                          : "border-stone-300 bg-white text-black hover:bg-stone-100"
                       }`}
                     >
                       <span
                         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-bold ${
-                          checked ? "border-emerald-400 bg-emerald-400 text-stone-950" : "border-white/20 text-white"
+                          checked ? "border-emerald-700 bg-emerald-700 text-white" : "border-stone-400 text-stone-700"
                         }`}
                       >
                         {checked ? "✓" : index + 1}
                       </span>
-                      <span className="min-w-0 flex-1 text-xl leading-snug text-white opacity-100">
-                        <span className={checked ? "line-through text-white" : "text-white"}>{ingredient.name}</span>
+                      <span className="min-w-0 flex-1 text-2xl font-semibold leading-snug text-black">
+                        <span className={checked ? "line-through decoration-2 text-black" : "text-black"}>{ingredient.name}</span>
                       </span>
-                      <span className={`shrink-0 text-lg font-medium ${checked ? "text-emerald-50" : "text-white"}`}>
+                      <span className={`shrink-0 text-xl font-semibold ${checked ? "text-emerald-900" : "text-black"}`}>
                         {ingredient.qty} {ingredient.unit}
                       </span>
                     </button>
@@ -1648,6 +1671,17 @@ export default function Home() {
                     </div>
                   ) : (
                     <div className="flex flex-wrap justify-end gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => toggleRecipePicked(r)}
+                        className={`rounded-lg border px-2 py-1 text-xs transition ${
+                          pickedRecipeIds.has(r.id)
+                            ? "bg-black text-white border-black"
+                            : "hover:bg-gray-100"
+                        }`}
+                      >
+                        {pickedRecipeIds.has(r.id) ? "Valittu" : "Valitse"}
+                      </button>
                       <button
                         type="button"
                         onClick={() => openCookingMode(r.id)}
