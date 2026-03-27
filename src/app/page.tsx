@@ -1746,7 +1746,7 @@ export default function Home() {
             {filteredRecipes.map((r) => (
               <div
                 key={r.id}
-                className={`rounded-2xl border p-3 space-y-2 overflow-hidden ${
+                className={`rounded-2xl border p-3 space-y-2 overflow-hidden transition duration-150 hover:-translate-y-0.5 hover:shadow-lg focus-within:-translate-y-0.5 focus-within:shadow-lg ${
                   editingRecipeId === r.id ? "border-black bg-gray-50" : ""
                 }`}
               >
