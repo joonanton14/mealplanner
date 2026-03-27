@@ -96,6 +96,68 @@ function mergeExtrasIntoShoppingList(
   return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
 }
 
+const WEEKLY_DEFAULT_ITEMS = [
+  "Wc paperi",
+  "Talouspaperi",
+  "Mysli",
+  "Muro",
+  "Kauramaito",
+  "Jogurtti",
+  "Luonnonjogurtti",
+  "Mehukeitto",
+  "Maito",
+  "Juusto",
+  "Leikkele",
+  "Voi",
+  "Leipä",
+  "Kahvi",
+];
+
+function prismaSectionIndex(name: string): number {
+  const n = normalizeName(name);
+
+  // 1) Taloustarvikkeet
+  if (/wc\s*paperi|talouspaperi/.test(n)) return 0;
+
+  // 7) Kuivatuotteet (special-case before produce so tomaattimurska won't match "tomaatti")
+  if (/pasta|spagetti|spaghetti|riisi|tomaattimurska/.test(n)) return 6;
+
+  // 2) Hedelmat / vihannekset
+  if (
+    /hedelma|vihannes|omena|banaani|appelsiini|sitruuna|lime|kurkku|tomaatti|paprika|sipuli|peruna|porkkana|salaatti/.test(
+      n
+    )
+  ) {
+    return 1;
+  }
+
+  // 3) Lihat
+  if (/kana|broileri|jauheliha/.test(n)) return 2;
+
+  // 4) Maitotuotteet
+  if (/maito|juusto|ruokakerma|kuohukerma|jogurtti|luonnonjogurtti/.test(n)) return 3;
+
+  // 5) Leipä
+  if (/leipä/.test(n)) return 4;
+
+  // 6) Kahvi / kauramaito / kananmuna
+  if (/kahvi|kauramaito|kananmuna|kanamuna/.test(n)) return 5;
+
+  // Unknown items at the end
+  return 999;
+}
+
+function sortByPrismaOrder(
+  items: Array<{ name: string; unit: string; qty: number }>
+): Array<{ name: string; unit: string; qty: number }> {
+  return [...items].sort((a, b) => {
+    const ai = prismaSectionIndex(a.name);
+    const bi = prismaSectionIndex(b.name);
+    if (ai !== bi) return ai - bi;
+    return a.name.localeCompare(b.name, "fi");
+  });
+}
+
 function migratePickedMeals(picked: Array<PickedMeal | { recipeId: string; name: string } | null | undefined>) {
   return (picked ?? [])
     .filter((meal): meal is PickedMeal | { recipeId: string; name: string } => !!meal)
@@ -557,8 +619,10 @@ export default function Home() {
 
     // extras: filtered (last empty row removed)
     const extras = extraItems.map((x) => x.trim()).filter(Boolean);
+    const alwaysIncluded = WEEKLY_DEFAULT_ITEMS;
 
-    return mergeExtrasIntoShoppingList(base, extras);
+    const merged = mergeExtrasIntoShoppingList(base, [...alwaysIncluded, ...extras]);
+    return sortByPrismaOrder(merged);
   }, [state, pantry, extraItems]);
 
   const hiddenSet = useMemo(
