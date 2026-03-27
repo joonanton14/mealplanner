@@ -88,12 +88,6 @@ body::before {
   transform: translateY(0);
 }
 
-.meal-app button[class*="bg-black"] {
-  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
-  border: 1px solid color-mix(in oklab, var(--accent-strong) 70%, black);
-  box-shadow: 0 6px 14px rgba(35, 111, 87, 0.3);
-}
-
 .meal-app button[class*="bg-red-600"] {
   background: linear-gradient(135deg, #c95050 0%, var(--danger) 100%);
   border: 1px solid color-mix(in oklab, var(--danger) 65%, black);
@@ -102,6 +96,14 @@ body::before {
 .meal-app button[class*="border"] {
   border-color: var(--border);
   background: color-mix(in oklab, var(--surface) 84%, white);
+}
+
+/* bg-black must come after the border rule to win the cascade */
+.meal-app button[class*="bg-black"] {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
+  border: 1px solid color-mix(in oklab, var(--accent-strong) 70%, black);
+  box-shadow: 0 6px 14px rgba(35, 111, 87, 0.3);
+  color: white;
 }
 
 .meal-app > * {

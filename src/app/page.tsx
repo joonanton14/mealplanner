@@ -181,6 +181,17 @@ function SortableShopItem({
   );
 }
 
+function getRecipeTag(recipe: Recipe): "kana" | "liha" | "kasvis" {
+  const text = recipe.ingredients.map((i) => i.name.toLowerCase()).join(" ");
+  // \bkana\b matches standalone "kana" but NOT "kananmuna", "kananmaksa" etc.
+  const isKana = /\bkana\b|kanafilee|kanafile|kananrinta|kanankoipi|kanansiip|kananliha|broileri/.test(text);
+  const isLiha = /jauheliha|nauta\b|sika\b|porsas|lammas|\bliha\b|makkara|pekoni|läski|hirvi|kinkku/.test(text);
+  // liha takes priority — a recipe with both jauheliha and kananmuna goes to liha
+  if (isLiha) return "liha";
+  if (isKana) return "kana";
+  return "kasvis";
+}
+
 export default function Home() {
   const [authed, setAuthed] = useState<boolean | null>(null);
   const [state, setState] = useState<AppState | null>(null);
@@ -264,6 +275,7 @@ export default function Home() {
   const [formError, setFormError] = useState<string | null>(null);
   const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
   const [recipeSearch, setRecipeSearch] = useState("");
+  const [recipeFilter, setRecipeFilter] = useState<"all" | "kana" | "liha" | "kasvis">("all");
 
   // Paste-and-parse modal
   const [pasteMode, setPasteMode] = useState(false);
@@ -566,14 +578,22 @@ export default function Home() {
   const filteredRecipes = useMemo(() => {
     if (!state) return [];
     const q = recipeSearch.trim().toLowerCase();
-    if (!q) return state.recipes;
+    let recipes = state.recipes;
 
-    return state.recipes.filter((r) => {
-      if (r.name.toLowerCase().includes(q)) return true;
-      if ((r.notes ?? "").toLowerCase().includes(q)) return true;
-      return r.ingredients.some((i) => i.name.toLowerCase().includes(q));
-    });
-  }, [state, recipeSearch]);
+    if (q) {
+      recipes = recipes.filter((r) => {
+        if (r.name.toLowerCase().includes(q)) return true;
+        if ((r.notes ?? "").toLowerCase().includes(q)) return true;
+        return r.ingredients.some((i) => i.name.toLowerCase().includes(q));
+      });
+    }
+
+    if (recipeFilter !== "all") {
+      recipes = recipes.filter((r) => getRecipeTag(r) === recipeFilter);
+    }
+
+    return recipes;
+  }, [state, recipeSearch, recipeFilter]);
 
   const cookingRecipe = useMemo(() => {
     if (!state || !cookingRecipeId) return null;
@@ -1346,11 +1366,13 @@ export default function Home() {
                     onChange={(e) => updateIngredientRow(idx, { unit: e.target.value })}
                   >
                     <option value="">-</option>
-                    <option value="g">G</option>
-                    <option value="dl">Dl</option>
-                    <option value="rkl">Rkl</option>
-                    <option value="tl">Tl</option>
-                    <option value="kpl">Kpl</option>
+                    <option value="g">g</option>
+                    <option value="dl">dl</option>
+                    <option value="rkl">rkl</option>
+                    <option value="tl">tl</option>
+                    <option value="kpl">kpl</option>
+                    <option value="pkt">pkt</option>
+                    <option value="prk">prk</option>
                   </select>
 
 
@@ -1625,14 +1647,30 @@ export default function Home() {
 
       {/* RECIPES LIST */}
       <section className="rounded-2xl border bg-white/50 p-4 shadow-sm space-y-3">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-xl font-semibold">Reseptit ({filteredRecipes.length}/{state.recipes.length})</h2>
-          <input
-            className="w-full sm:w-72 rounded-xl border p-2"
-            value={recipeSearch}
-            onChange={(e) => setRecipeSearch(e.target.value)}
-            placeholder="Hae reseptejä..."
-          />
+        <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-xl font-semibold">Reseptit ({filteredRecipes.length}/{state.recipes.length})</h2>
+            <input
+              className="w-full sm:w-72 rounded-xl border p-2"
+              value={recipeSearch}
+              onChange={(e) => setRecipeSearch(e.target.value)}
+              placeholder="Hae reseptejä..."
+            />
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {(["all", "kana", "liha", "kasvis"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setRecipeFilter(f)}
+                className={`rounded-xl border px-3 py-1.5 text-sm transition ${
+                  recipeFilter === f ? "bg-black text-white border-black" : "hover:bg-gray-100"
+                }`}
+              >
+                {f === "all" ? "Kaikki" : f === "kana" ? "🐔 Kana" : f === "liha" ? "🥩 Liha" : "🥦 Kasvis"}
+              </button>
+            ))}
+          </div>
         </div>
 
         {state.recipes.length === 0 ? (
@@ -1648,60 +1686,101 @@ export default function Home() {
                   editingRecipeId === r.id ? "border-black bg-gray-50" : ""
                 }`}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="font-semibold min-w-0 break-words">{r.name}</div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="font-semibold min-w-0 break-words sm:flex-1">{r.name}</div>
 
                   {confirmRecipeDeleteId === r.id ? (
-                    <div className="flex flex-wrap justify-end gap-2 shrink-0">
+                    <div className="flex flex-wrap justify-end gap-2 self-end sm:self-auto">
                       <button
+                        type="button"
                         onClick={() => {
                           removeRecipe(r.id);
                           setConfirmRecipeDeleteId(null);
                         }}
-                        className="rounded-lg bg-red-600 text-white px-2 py-1 text-xs hover:bg-red-700 transition"
+                        title="Vahvista poisto"
+                        aria-label="Vahvista poisto"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-red-600 text-white text-xs hover:bg-red-700 transition sm:h-8 sm:w-8"
                       >
-                        Vahvista
+                        <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="3,10 8,15 17,5" />
+                        </svg>
                       </button>
                       <button
+                        type="button"
                         onClick={() => setConfirmRecipeDeleteId(null)}
-                        className="rounded-lg bg-red-600 text-white px-2 py-1 text-xs hover:bg-red-700 transition"
+                        title="Peruuta"
+                        aria-label="Peruuta"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border text-xs hover:bg-gray-100 transition sm:h-8 sm:w-8"
                       >
-                        Peruuta
+                        <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                          <line x1="5" y1="5" x2="15" y2="15" />
+                          <line x1="15" y1="5" x2="5" y2="15" />
+                        </svg>
                       </button>
                     </div>
                   ) : (
-                    <div className="flex flex-wrap justify-end gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center justify-end gap-1 self-end sm:self-auto">
                       <button
                         type="button"
                         onClick={() => toggleRecipePicked(r)}
-                        className={`rounded-lg border px-2 py-1 text-xs transition ${
+                        title={pickedRecipeIds.has(r.id) ? "Poista valinta" : "Valitse"}
+                        aria-label={pickedRecipeIds.has(r.id) ? "Poista valinta" : "Valitse"}
+                        className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border text-xs transition sm:h-8 sm:w-8 ${
                           pickedRecipeIds.has(r.id)
                             ? "bg-black text-white border-black"
                             : "hover:bg-gray-100"
                         }`}
                       >
-                        {pickedRecipeIds.has(r.id) ? "Valittu" : "Valitse"}
+                        {pickedRecipeIds.has(r.id) ? (
+                          <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3,10 8,15 17,5" />
+                          </svg>
+                        ) : (
+                          <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                            <line x1="10" y1="4" x2="10" y2="16" />
+                            <line x1="4" y1="10" x2="16" y2="10" />
+                          </svg>
+                        )}
                       </button>
                       <button
                         type="button"
                         onClick={() => openCookingMode(r.id)}
-                        className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-100 transition"
+                        title="Kokkaa"
+                        aria-label="Kokkaa"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border text-xs hover:bg-gray-100 transition sm:h-8 sm:w-8"
                       >
-                        Kokkaa
+                        <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M6 9h8" />
+                          <path d="M4 9h1" />
+                          <path d="M15 9h1a2 2 0 0 1 0 4h-1" />
+                          <path d="M6 9v6h8V9" />
+                          <path d="M8 5c0 1-1 1.5-1 2.5" />
+                          <path d="M11 4c0 1-1 1.5-1 2.5" />
+                        </svg>
                       </button>
                       <button
                         onClick={() => startEditRecipe(r.id)}
-                        className="rounded-lg border px-2 py-1 text-xs hover:bg-gray-100 transition"
+                        title="Muokkaa"
+                        aria-label="Muokkaa"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border text-xs hover:bg-gray-100 transition sm:h-8 sm:w-8"
                       >
-                        Muokkaa
+                        <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M3 14.5V17h2.5L15 7.5 12.5 5 3 14.5z" />
+                          <path d="M11.8 5.7 14.3 8.2" />
+                        </svg>
                       </button>
                       <button
                         onClick={() => {
                           setConfirmRecipeDeleteId(r.id);
                         }}
-                        className="rounded-lg bg-red-600 text-white px-2 py-1 text-xs hover:bg-red-700 transition"
+                        title="Poista"
+                        aria-label="Poista"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg bg-red-600 text-white text-xs hover:bg-red-700 transition sm:h-8 sm:w-8"
                       >
-                        ✕
+                        <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round">
+                          <line x1="5" y1="5" x2="15" y2="15" />
+                          <line x1="15" y1="5" x2="5" y2="15" />
+                        </svg>
                       </button>
                     </div>
                   )}
